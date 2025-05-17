@@ -1,0 +1,35 @@
+# Configuration file for Bochs
+
+# CPU configuration
+cpu {
+    type              = "i486"
+    mode              = "protected"
+    # Other CPU options...
+}
+
+# Memory configuration
+memory {
+    size              = 32M
+    # Other memory options...
+}
+
+# Display configuration (VGA)
+display {
+    dynamic_vga        = true
+    resolution         = "1024x768"
+    # Other display options...
+}
+
+# CD-ROM drive configuration
+disk {
+    type             = "cdrom0"
+    device           = 0x1d00
+    file             = "[REPLACE_WITH_YOUR_ISO_PATH]"
+    # Other disk options...
+}
+
+# BIOS configuration (optional)
+bios {
+    boot_device       = "none"  # Set to cdrom or harddisk if needed
+}
+

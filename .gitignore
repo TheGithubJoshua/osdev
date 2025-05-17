@@ -1,0 +1,6 @@
+/kernel-deps
+/limine
+/ovmf
+/kernel/bin
+*.iso
+*.hdd
