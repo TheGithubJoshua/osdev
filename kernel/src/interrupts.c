@@ -1,6 +1,8 @@
 #include <stdint.h>
 #include <stdbool.h>
 #include <stdint.h>
+#include "timer.h"
+#include "keyboard.h"
 #include "iodebug.h"
 // TODO: when returning from interrupt (fault) skip over faulting proccess after restore.
 // TODO: check if iretq just returns to start of handling interrupt.
@@ -163,10 +165,12 @@ void irq_remap() {
 void irq_handler(uint64_t vector) {
     switch (vector) {
     case 32:
-        serial_puts("IRQ 0!");
+        //serial_puts("IRQ 0!");
+        timer_handler();
         break;
     case 33:
-        serial_puts("IRQ 1!");
+        //serial_puts("IRQ 1!");
+        keyboard_handler();
         break;
     case 34:
         serial_puts("IRQ 2!");
@@ -219,14 +223,6 @@ void irq_handler(uint64_t vector) {
     outb(0x20, 0x20); // send EOI to master PIC
 
 }
-
-void init_pit(uint32_t frequency) {
-    uint16_t divisor = 1193180 / frequency;
-    outb(0x43, 0x36); // mode 3, binary, square wave
-    outb(0x40, divisor & 0xFF);        // low byte
-    outb(0x40, (divisor >> 8) & 0xFF); // high byte
-}
-
 
 void idt_set_descriptor(uint8_t vector, void* isr, uint8_t flags);
 void idt_set_descriptor(uint8_t vector, void* isr, uint8_t flags) {

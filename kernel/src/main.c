@@ -5,6 +5,10 @@
 #include "iodebug.h"
 #include "interrupts.h"
 #include "acpi.h"
+#include "timer.h"
+#include "fb.h"
+#include "flanterm/flanterm.h"
+#include "flanterm/backends/fb.h"
 #include "font.c"
 
 // Set the base revision to 3, this is recommended as this is the latest
@@ -102,7 +106,8 @@ static void hcf(void) {
 // not anymore
 
 // Render the glyph at position (x, y) with foreground color `fg_color`
-void draw(struct limine_framebuffer *fb, uint32_t x, uint32_t y, uint8_t glyph[16], uint32_t fg_color) {
+void draw(uint32_t x, uint32_t y, uint8_t glyph[16], uint32_t fg_color) {
+    struct limine_framebuffer *fb = framebuffer_request.response->framebuffers[0];
     for (uint32_t row = 0; row < 16; row++) {
         uint8_t row_data = glyph[row];
         for (uint32_t col = 0; col < 8; col++) {
@@ -115,7 +120,8 @@ void draw(struct limine_framebuffer *fb, uint32_t x, uint32_t y, uint8_t glyph[1
     }
 }
 
-void draw_text(struct limine_framebuffer *fb, uint32_t x, uint32_t y, const char *text, uint32_t fg_color) {
+void draw_text(uint32_t x, uint32_t y, const char *text, uint32_t fg_color) {
+    struct limine_framebuffer *fb = framebuffer_request.response->framebuffers[0];
     uint32_t original_x = x; // For newline handling
     uint32_t max_x = fb->width - 8; // Right edge (8px char width)
     uint32_t max_y = fb->height - 16; // Bottom edge (16px char height)
@@ -142,7 +148,7 @@ void draw_text(struct limine_framebuffer *fb, uint32_t x, uint32_t y, const char
             default:
                 if (*text >= 0x20 && *text <= 0x7F) { // Printable ASCII
                     if (x <= max_x) {
-                        draw(fb, x, y, font[(uint8_t)*text], fg_color);
+                        draw(x, y, font[(uint8_t)*text], fg_color);
                         x += 8;
                     }
                 }
@@ -219,6 +225,9 @@ void int_to_str(int value, char *str) {
 // The following will be our kernel's entry point.
 // If renaming kmain() to something else, make sure to change the
 // linker script accordingly.
+
+struct flanterm_context *ft_ctx = NULL;
+
 void kmain(void) {
 
     // Ensure the bootloader actually understands our base revision (see spec).
@@ -232,55 +241,53 @@ void kmain(void) {
         hcf();
     }
 
+/* get shit setup */
+    
     idt_init();
     //irq_unmask_all();
     irq_remap();
-    init_pit(100); // 100 Hz
+    timer_phase(100); // 100 Hz
 
     rsdp_t *rsdp = get_acpi_table();
     struct xsdt_t *xsdt = get_xsdt_table();
     get_fadt(get_xsdt_table());
 
     // Fetch the first framebuffer.
-    struct limine_framebuffer *framebuffer = framebuffer_request.response->framebuffers[0];
 
     // Note: we assume the framebuffer model is RGB with 32-bit pixels.
 //    for (size_t i = 0; i < 100; i++) {
 //        volatile uint32_t *fb_ptr = framebuffer->address;
 //        fb_ptr[i * (framebuffer->pitch / 4) + i] = 0xffffff;
 //    }
+struct limine_framebuffer *framebuffer = framebuffer_request.response->framebuffers[0];
 
-char text[16] = "kiLl YouRsElf";
-draw_text(framebuffer, 200, 200, text, 0xFFA500);
 
-if (are_interrupts_enabled()) {
-    // Interrupts are enabled
-    char yay[21] = "sti set :)";
-    draw_text(framebuffer, 300, 300, yay, 0xFFA500);
-} else {
-    // Interrupts are disabled
-    char kms[21] = "no sti :(";
-    draw_text(framebuffer, 300, 300, kms, 0xFFA500);
-}
+struct flanterm_context *ft_ctx = flanterm_fb_init(
+        NULL,
+        NULL,
+        framebuffer->address, framebuffer->width, framebuffer->height, framebuffer->pitch,
+        framebuffer->red_mask_size, framebuffer->red_mask_shift,
+        framebuffer->green_mask_size, framebuffer->green_mask_shift,
+        framebuffer->blue_mask_size, framebuffer->blue_mask_shift,
+        NULL,
+        NULL, NULL,
+        NULL, NULL,
+        NULL, NULL,
+        NULL, 0, 0, 1,
+        0, 0,
+        0
+    );
 
+// demo fault
 asm("int $0");
 
-if (is_long_mode() == true) {
-    char lmode[21] = "long mode enabled";
-    draw_text(framebuffer, 300, 200, lmode, 0xFFA500);
-} else {
-    char nolmode[21] = "no long mode";
-    draw_text(framebuffer, 300, 200, nolmode, 0xFFA500);
-}
+serial_puts("hello \n");
+flanterm_write(ft_ctx, "Welcome\n", 9);
 
-    int cs;
-    __asm__ volatile ("mov %%cs, %0" : "=r"(cs));
-    char cs_char[16];
-    int_to_str(cs, cs_char);
-    draw_text(framebuffer, 200, 500, cs_char, 0xFFA500);
-    serial_puts("hello \n");
 
     // We're done, just hang...
 //while (true)
     hcf();
 }
+
+
