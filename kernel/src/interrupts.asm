@@ -1,24 +1,45 @@
 %macro isr_err_stub 1
 isr_stub_%+%1:
-    mov rdi, rsp
+    push rdi
+    push rsi
+    ;mov rsi, rsp
     mov rdi, %1
     call exception_handler
-    ;mov rsp, rax
-    add rsp, 16
-    
-    iretq 
+    pop rsi
+    pop rdi
+    add rsp, 8      ; Discard error code
+    iretq
 %endmacro
 ; if writing for 64-bit, use iretq instead
 %macro isr_no_err_stub 1
 isr_stub_%+%1:
-    mov rdi, rsp
+    push rdi
+    push rsi
+    ;mov rsi, rsp
     mov rdi, %1
     call exception_handler
-    ;mov rsp, rax
-    iretq 
+    pop rsi
+    pop rdi
+    ;add rsp, 8      ; Discard error code
+    iretq
+%endmacro
+
+%macro isr_irq_stub 1
+isr_stub_%+%1:
+    push rdi
+    push rsi
+    ;mov rsi, rsp
+    mov rdi, %1
+    call irq_handler
+    pop rsi
+    pop rdi
+    ;add rsp, 8      ; Discard error code
+    iretq
 %endmacro
 
 extern exception_handler
+extern irq_handler
+
 isr_no_err_stub 0
 isr_no_err_stub 1
 isr_no_err_stub 2
@@ -52,10 +73,27 @@ isr_no_err_stub 29
 isr_err_stub    30
 isr_no_err_stub 31
 
+isr_irq_stub 32
+isr_irq_stub 33
+isr_irq_stub 34
+isr_irq_stub 35
+isr_irq_stub 36
+isr_irq_stub 37
+isr_irq_stub 38
+isr_irq_stub 39
+isr_irq_stub 40
+isr_irq_stub 41
+isr_irq_stub 42
+isr_irq_stub 43
+isr_irq_stub 44
+isr_irq_stub 45
+isr_irq_stub 46
+isr_irq_stub 47
+
 global isr_stub_table
 isr_stub_table:
 %assign i 0 
-%rep    32 
+%rep    48 
     dq isr_stub_%+i ; use DQ instead if targeting 64-bit
 %assign i i+1 
 %endrep

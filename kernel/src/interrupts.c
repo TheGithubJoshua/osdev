@@ -1,3 +1,4 @@
+#include <stdint.h>
 #include <stdbool.h>
 #include <stdint.h>
 #include "iodebug.h"
@@ -126,9 +127,6 @@ void exception_handler(uint64_t vector) {
     case 22:
         serial_puts("reserved");
         break;
-    case 32:
-        serial_puts("external interrupt");
-        break;
     default:
         serial_puts("unknown interrupt");
         break;
@@ -136,6 +134,99 @@ void exception_handler(uint64_t vector) {
 
     //return context;
 }
+
+#define PIC1        0x20        /* IO base address for master PIC */
+#define PIC2        0xA0        /* IO base address for slave PIC */
+#define PIC1_COMMAND    PIC1
+#define PIC1_DATA   (PIC1+1)
+#define PIC2_COMMAND    PIC2
+#define PIC2_DATA   (PIC2+1)
+
+void irq_unmask_all() {
+    outb(0x21, 0); // unmask all interrupts on master PIC
+    outb(0xA1, 0); // unmask all interrupts on slave PIC
+}
+
+void irq_remap() {
+    outb(0x20, 0x11);
+    outb(0xA0, 0x11);
+    outb(0x21, 0x20);
+    outb(0xA1, 0x28);
+    outb(0x21, 0x04);
+    outb(0xA1, 0x02);
+    outb(0x21, 0x01);
+    outb(0xA1, 0x01);
+    outb(0x21, 0x0);
+    outb(0xA1, 0x0);
+}
+
+void irq_handler(uint64_t vector) {
+    switch (vector) {
+    case 32:
+        serial_puts("IRQ 0!");
+        break;
+    case 33:
+        serial_puts("IRQ 1!");
+        break;
+    case 34:
+        serial_puts("IRQ 2!");
+        break;
+    case 35:
+        serial_puts("IRQ 3!");
+        break;
+    case 36:
+        serial_puts("IRQ 4!");
+        break;
+    case 37:
+        serial_puts("IRQ 5!");
+        break;
+    case 38:
+        serial_puts("IRQ 6!");
+        break;
+    case 39:
+        serial_puts("IRQ 7!");
+        break;
+    case 40:
+        serial_puts("IRQ 8!");
+        break;
+    case 41:
+        serial_puts("IRQ 9!");
+        break;
+    case 42:
+        serial_puts("IRQ 10!");
+        break;
+    case 43:
+        serial_puts("IRQ 11!");
+        break;
+    case 44:
+        serial_puts("IRQ 12!");
+        break;
+    case 45:
+        serial_puts("IRQ 13!");
+        break;
+    case 46:
+        serial_puts("IRQ 14!");
+        break;
+    case 47:
+        serial_puts("IRQ 15!");
+        break;
+    }
+
+    if (vector >= 40) {
+        outb(0xA0, 0x20); // send EOI to slave PIC
+    }
+
+    outb(0x20, 0x20); // send EOI to master PIC
+
+}
+
+void init_pit(uint32_t frequency) {
+    uint16_t divisor = 1193180 / frequency;
+    outb(0x43, 0x36); // mode 3, binary, square wave
+    outb(0x40, divisor & 0xFF);        // low byte
+    outb(0x40, (divisor >> 8) & 0xFF); // high byte
+}
+
 
 void idt_set_descriptor(uint8_t vector, void* isr, uint8_t flags);
 void idt_set_descriptor(uint8_t vector, void* isr, uint8_t flags) {
@@ -159,7 +250,7 @@ void idt_init() {
     idtr.base = (uintptr_t)&idt[0];
     idtr.limit = (uint16_t)sizeof(idt_entry_t) * 256 - 1;
 
-    for (uint8_t vector = 0; vector < 32; vector++) {
+    for (uint8_t vector = 0; vector < 47; vector++) {
         idt_set_descriptor(vector, isr_stub_table[vector], 0x8E);
         vectors[vector] = true;
     }

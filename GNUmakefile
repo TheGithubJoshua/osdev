@@ -58,6 +58,17 @@ run-uefi: ovmf/ovmf-code-x86_64.fd $(IMAGE_NAME).iso
 		-serial stdio \
 		$(QEMUFLAGS)
 
+.PHONY: monitor-uefi
+monitor-uefi: ovmf/ovmf-code-x86_64.fd $(IMAGE_NAME).iso
+	qemu-system-x86_64 \
+		-M q35 \
+		-drive if=pflash,unit=0,format=raw,file=ovmf/ovmf-code-x86_64.fd,readonly=on \
+		-cdrom $(IMAGE_NAME).iso \
+		-boot d \
+		-monitor stdio \
+		-serial file:serial.log \
+		$(QEMUFLAGS)
+
 .PHONY: debug-uefi
 debug-uefi: ovmf/ovmf-code-x86_64.fd $(IMAGE_NAME).iso
 	qemu-system-x86_64 \

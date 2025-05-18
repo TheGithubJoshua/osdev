@@ -233,9 +233,13 @@ void kmain(void) {
     }
 
     idt_init();
+    //irq_unmask_all();
+    irq_remap();
+    init_pit(100); // 100 Hz
+
     rsdp_t *rsdp = get_acpi_table();
     struct xsdt_t *xsdt = get_xsdt_table();
-    findFACP(get_xsdt_table());
+    get_fadt(get_xsdt_table());
 
     // Fetch the first framebuffer.
     struct limine_framebuffer *framebuffer = framebuffer_request.response->framebuffers[0];
@@ -277,6 +281,6 @@ if (is_long_mode() == true) {
     serial_puts("hello \n");
 
     // We're done, just hang...
-while (true)
+//while (true)
     hcf();
 }

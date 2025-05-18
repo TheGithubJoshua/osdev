@@ -64,6 +64,99 @@ typedef struct {
     uint8_t reserved[3];
 } rsdp_ext_t;
 
+typedef struct GenericAddressStructure
+{
+  uint8_t AddressSpace;
+  uint8_t BitWidth;
+  uint8_t BitOffset;
+  uint8_t AccessSize;
+  uint64_t Address;
+} GenericAddressStructure;
+
+typedef struct ACPISDTHeader {
+  char Signature[4];
+  uint32_t Length;
+  uint8_t Revision;
+  uint8_t Checksum;
+  char OEMID[6];
+  char OEMTableID[8];
+  uint32_t OEMRevision;
+  uint32_t CreatorID;
+  uint32_t CreatorRevision;
+} __attribute__((packed)) sdt_header_t;
+
+typedef struct fadt_t { 
+    struct   ACPISDTHeader header;
+    uint32_t FirmwareCtrl;
+    uint32_t Dsdt;
+
+    // field used in ACPI 1.0; no longer in use, for compatibility only
+    uint8_t  Reserved;
+
+    uint8_t  PreferredPowerManagementProfile;
+    uint16_t SCI_Interrupt;
+    uint32_t SMI_CommandPort;
+    uint8_t  AcpiEnable;
+    uint8_t  AcpiDisable;
+    uint8_t  S4BIOS_REQ;
+    uint8_t  PSTATE_Control;
+    uint32_t PM1aEventBlock;
+    uint32_t PM1bEventBlock;
+    uint32_t PM1aControlBlock;
+    uint32_t PM1bControlBlock;
+    uint32_t PM2ControlBlock;
+    uint32_t PMTimerBlock;
+    uint32_t GPE0Block;
+    uint32_t GPE1Block;
+    uint8_t  PM1EventLength;
+    uint8_t  PM1ControlLength;
+    uint8_t  PM2ControlLength;
+    uint8_t  PMTimerLength;
+    uint8_t  GPE0Length;
+    uint8_t  GPE1Length;
+    uint8_t  GPE1Base;
+    uint8_t  CStateControl;
+    uint16_t WorstC2Latency;
+    uint16_t WorstC3Latency;
+    uint16_t FlushSize;
+    uint16_t FlushStride;
+    uint8_t  DutyOffset;
+    uint8_t  DutyWidth;
+    uint8_t  DayAlarm;
+    uint8_t  MonthAlarm;
+    uint8_t  Century;
+
+    // reserved in ACPI 1.0; used since ACPI 2.0+
+    uint16_t BootArchitectureFlags;
+
+    uint8_t  Reserved2;
+    uint32_t Flags;
+
+    // 12 byte structure; see below for details
+    GenericAddressStructure ResetReg;
+
+    uint8_t  ResetValue;
+    uint8_t  Reserved3[3];
+  
+    // 64bit pointers - Available on ACPI 2.0+
+    uint64_t                X_FirmwareControl;
+    uint64_t                X_Dsdt;
+
+    GenericAddressStructure X_PM1aEventBlock;
+    GenericAddressStructure X_PM1bEventBlock;
+    GenericAddressStructure X_PM1aControlBlock;
+    GenericAddressStructure X_PM1bControlBlock;
+    GenericAddressStructure X_PM2ControlBlock;
+    GenericAddressStructure X_PMTimerBlock;
+    GenericAddressStructure X_GPE0Block;
+    GenericAddressStructure X_GPE1Block;
+} fadt_t;
+
+typedef struct xsdt_t {
+    sdt_header_t sdtHeader; //signature "XSDT"
+    uint64_t sdtAddresses[];
+} __attribute__((packed)) xsdt_t;
+
 int rsdp_validate(rsdp_t *rsdp) {
     // Expected signature "RSD PTR " (8 bytes)
     const char *expected = "RSD PTR ";
@@ -127,23 +220,6 @@ rsdp_t *get_acpi_table(void) {
 
 // now for the xsdt shit.
 
-typedef struct ACPISDTHeader {
-  char Signature[4];
-  uint32_t Length;
-  uint8_t Revision;
-  uint8_t Checksum;
-  char OEMID[6];
-  char OEMTableID[8];
-  uint32_t OEMRevision;
-  uint32_t CreatorID;
-  uint32_t CreatorRevision;
-} __attribute__((packed)) sdt_header_t;
-
-typedef struct xsdt_t {
-    sdt_header_t sdtHeader; //signature "XSDT"
-    uint64_t sdtAddresses[];
-} __attribute__((packed)) xsdt_t;
-
 xsdt_t *get_xsdt_table(void) {
 	//xsdt_t xsdt;
 	//sdt_header_t *sdt_header (sdt_header_t *)rsdp_ext_t.xsdt_address
@@ -162,7 +238,7 @@ xsdt_t *get_xsdt_table(void) {
     return xsdt;
 }
 
-void *findFACP(void *RootSDT) {
+fadt_t *get_fadt(void *RootSDT) {
     xsdt_t *xsdt = (xsdt_t *) RootSDT;
     int entries = (xsdt->sdtHeader.Length - sizeof(xsdt->sdtHeader)) / 8;
     
@@ -197,7 +273,8 @@ void *findFACP(void *RootSDT) {
             serial_puts("\n FADT Found! Loc: ");
             serial_puthex(xsdt->sdtAddresses[i]);
             serial_puts("\n");
-            return (void *) h;
+            fadt_t *fadt = (struct fadt_t *)((uintptr_t)xsdt->sdtAddresses[i] + get_phys_offset());
+            return fadt;
         }
     }
 
@@ -205,4 +282,24 @@ void *findFACP(void *RootSDT) {
     serial_puts("No FADT found :(\n");
     return NULL;
 }
+
+/*fadt_t *parse_fadt(void) {
+    fadt_t *fadt = (fadt_t *)get_fadt(get_xsdt_table());
+    if (fadt == NULL) {
+        serial_puts("FADT not found");
+        return 0;
+    }
+
+    // Print some fields from the FADT
+    serial_puts("FADT Signature: ");
+    for (int i = 0; i < 4; i++) serial_putc(fadt->h.Signature[i]);
+    serial_puts("\nLength: ");
+    serial_puthex(fadt->h.Length);
+    serial_puts("\nFirmware Control: ");
+    serial_puthex(fadt->FirmwareCtrl);
+    serial_puts("\nDSDT: ");
+    serial_puthex(fadt->Dsdt);
+
+    return fadt;
+}*/
 
