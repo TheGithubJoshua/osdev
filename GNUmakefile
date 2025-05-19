@@ -26,6 +26,7 @@ run: $(IMAGE_NAME).iso
 		-M q35 \
 		-cdrom $(IMAGE_NAME).iso \
 		-boot d \
+		-audiodev pa,id=speaker -machine pcspk-audiodev=speaker \
 		-serial stdio \
 		$(QEMUFLAGS)
 
@@ -34,6 +35,7 @@ run-monitor: $(IMAGE_NAME).iso
 	qemu-system-x86_64 \
 		-M q35 \
 		-cdrom $(IMAGE_NAME).iso \
+		-audiodev pa,id=speaker -machine pcspk-audiodev=speaker \
 		-boot d \
 		-serial stdio \
 		$(QEMUFLAGS)
@@ -43,6 +45,7 @@ debug: $(IMAGE_NAME).iso
 	qemu-system-x86_64 \
 		-M q35 \
 		-cdrom $(IMAGE_NAME).iso \
+		-audiodev pa,id=speaker -machine pcspk-audiodev=speaker \
 		-boot d \
 		-serial stdio \
 		-gdb tcp::1234 \
@@ -54,6 +57,7 @@ run-uefi: ovmf/ovmf-code-x86_64.fd $(IMAGE_NAME).iso
 		-M q35 \
 		-drive if=pflash,unit=0,format=raw,file=ovmf/ovmf-code-x86_64.fd,readonly=on \
 		-cdrom $(IMAGE_NAME).iso \
+		-audiodev pa,id=speaker -machine pcspk-audiodev=speaker \
 		-boot d \
 		-serial stdio \
 		$(QEMUFLAGS)
@@ -64,6 +68,7 @@ monitor-uefi: ovmf/ovmf-code-x86_64.fd $(IMAGE_NAME).iso
 		-M q35 \
 		-drive if=pflash,unit=0,format=raw,file=ovmf/ovmf-code-x86_64.fd,readonly=on \
 		-cdrom $(IMAGE_NAME).iso \
+		-audiodev pa,id=speaker -machine pcspk-audiodev=speaker \
 		-boot d \
 		-monitor stdio \
 		-serial file:serial.log \
@@ -75,6 +80,7 @@ debug-uefi: ovmf/ovmf-code-x86_64.fd $(IMAGE_NAME).iso
 		-M q35 \
 		-drive if=pflash,unit=0,format=raw,file=ovmf/ovmf-code-x86_64.fd,readonly=on \
 		-cdrom $(IMAGE_NAME).iso \
+		-audiodev pa,id=speaker -machine pcspk-audiodev=speaker \
 		-boot d \
 		-gdb tcp::1234 \
 		-serial stdio \
@@ -85,6 +91,7 @@ run-hdd: $(IMAGE_NAME).hdd
 	qemu-system-x86_64 \
 		-M q35 \
 		-hda $(IMAGE_NAME).hdd \
+		-audiodev pa,id=speaker -machine pcspk-audiodev=speaker \
 		$(QEMUFLAGS)
 
 .PHONY: run-hdd-uefi
@@ -92,6 +99,7 @@ run-hdd-uefi: ovmf/ovmf-code-x86_64.fd $(IMAGE_NAME).hdd
 	qemu-system-x86_64 \
 		-M q35 \
 		-drive if=pflash,unit=0,format=raw,file=ovmf/ovmf-code-x86_64.fd,readonly=on \
+		-audiodev pa,id=speaker -machine pcspk-audiodev=speaker \
 		-hda $(IMAGE_NAME).hdd \
 		$(QEMUFLAGS)
 

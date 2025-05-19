@@ -1,3 +1,7 @@
+#include <stdint.h>
 void timer_handler();
 void timer_phase(int hz);
-void timer_wait();
+void timer_wait(int ticks);
+void play_sound(uint32_t freq);
+void nosound();
+void beep();

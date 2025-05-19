@@ -23,12 +23,6 @@ static volatile LIMINE_BASE_REVISION(2);
 // be made volatile or equivalent, _and_ they should be accessed at least
 // once or marked as used with the "used" attribute as done here.
 
-__attribute__((used, section(".limine_requests")))
-static volatile struct limine_framebuffer_request framebuffer_request = {
-    .id = LIMINE_FRAMEBUFFER_REQUEST,
-    .revision = 0
-};
-
 // Finally, define the start and end markers for the Limine requests.
 // These can also be moved anywhere, to any .c file, as seen fit.
 
@@ -106,7 +100,7 @@ static void hcf(void) {
 // not anymore
 
 // Render the glyph at position (x, y) with foreground color `fg_color`
-void draw(uint32_t x, uint32_t y, uint8_t glyph[16], uint32_t fg_color) {
+/*void draw(uint32_t x, uint32_t y, uint8_t glyph[16], uint32_t fg_color) {
     struct limine_framebuffer *fb = framebuffer_request.response->framebuffers[0];
     for (uint32_t row = 0; row < 16; row++) {
         uint8_t row_data = glyph[row];
@@ -165,6 +159,7 @@ void draw_text(uint32_t x, uint32_t y, const char *text, uint32_t fg_color) {
         text++;
     }
 }
+*/
 
 static inline bool are_interrupts_enabled()
 {
@@ -226,8 +221,6 @@ void int_to_str(int value, char *str) {
 // If renaming kmain() to something else, make sure to change the
 // linker script accordingly.
 
-struct flanterm_context *ft_ctx = NULL;
-
 void kmain(void) {
 
     // Ensure the bootloader actually understands our base revision (see spec).
@@ -236,10 +229,11 @@ void kmain(void) {
     }
 
     // Ensure we got a framebuffer.
-    if (framebuffer_request.response == NULL
+    /*if (framebuffer_request.response == NULL
      || framebuffer_request.response->framebuffer_count < 1) {
         hcf();
     }
+*/
 
 /* get shit setup */
     
@@ -247,36 +241,22 @@ void kmain(void) {
     //irq_unmask_all();
     irq_remap();
     timer_phase(100); // 100 Hz
+    //timer_handler();
 
     rsdp_t *rsdp = get_acpi_table();
     struct xsdt_t *xsdt = get_xsdt_table();
     get_fadt(get_xsdt_table());
 
-    // Fetch the first framebuffer.
+    init_flanterm();
+    struct flanterm_context *ft_ctx = NULL;
+    
+    beep();
 
     // Note: we assume the framebuffer model is RGB with 32-bit pixels.
 //    for (size_t i = 0; i < 100; i++) {
 //        volatile uint32_t *fb_ptr = framebuffer->address;
 //        fb_ptr[i * (framebuffer->pitch / 4) + i] = 0xffffff;
 //    }
-struct limine_framebuffer *framebuffer = framebuffer_request.response->framebuffers[0];
-
-
-struct flanterm_context *ft_ctx = flanterm_fb_init(
-        NULL,
-        NULL,
-        framebuffer->address, framebuffer->width, framebuffer->height, framebuffer->pitch,
-        framebuffer->red_mask_size, framebuffer->red_mask_shift,
-        framebuffer->green_mask_size, framebuffer->green_mask_shift,
-        framebuffer->blue_mask_size, framebuffer->blue_mask_shift,
-        NULL,
-        NULL, NULL,
-        NULL, NULL,
-        NULL, NULL,
-        NULL, 0, 0, 1,
-        0, 0,
-        0
-    );
 
 // demo fault
 asm("int $0");
