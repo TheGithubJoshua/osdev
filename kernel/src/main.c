@@ -5,6 +5,7 @@
 #include "iodebug.h"
 #include "interrupts.h"
 #include "acpi/acpi.h"
+#include "lai/include/lai/core.h"
 #include "mm/pmm.h"
 #include "timer.h"
 #include "fb.h"
@@ -128,9 +129,9 @@ void test_palloc() {
 
     // Test reading back
     if (((uint8_t *)ptr)[0] != 0xAA) {
-        flanterm_write(ft_ctx, "palloc memory test failed: value mismatch\n", 38);
+        flanterm_write(ft_ctx, "\033[31mpalloc memory test failed: value mismatch!\033[0m\n", 47);
     } else {
-        flanterm_write(ft_ctx, "palloc memory test passed\n", 27);
+        flanterm_write(ft_ctx, "\033[32mpalloc memory test passed!\033[0m\n", 36);
         pfree(ptr, 1);
     }
 }
@@ -164,6 +165,8 @@ void kmain(void) {
     init_flanterm();
     struct flanterm_context *ft_ctx = flanterm_get_ctx();
     pmm_init();
+    lai_set_acpi_revision(rsdp->revision);
+    lai_create_namespace();
     
     beep();
     // Note: we assume the framebuffer model is RGB with 32-bit pixels.
@@ -176,7 +179,7 @@ void kmain(void) {
 asm("int $0");
 
 serial_puts("hello \n");
-flanterm_write(ft_ctx, "Welcome\n", 9);
+flanterm_write(ft_ctx, "Welcome!\n", 10);
 
 test_palloc();
 

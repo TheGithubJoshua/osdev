@@ -13,7 +13,7 @@ PREFIX := /usr/local
 CC := cc
 
 # User controllable C flags.
-CFLAGS := -g -O2 -pipe
+CFLAGS := -g -O2 -pipe -Isrc/lai/include/
 
 # User controllable C preprocessor flags. We set none by default.
 CPPFLAGS :=

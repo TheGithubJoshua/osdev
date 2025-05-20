@@ -1,3 +1,9 @@
 [submodule "kernel/src/flanterm"]
 	path = kernel/src/flanterm
 	url = https://codeberg.org/mintsuki/flanterm
+[submodule "lai"]
+	path = lai
+	url = https://github.com/managarm/lai
+[submodule "kernel/src/lai"]
+	path = kernel/src/lai
+	url = https://github.com/managarm/lai/

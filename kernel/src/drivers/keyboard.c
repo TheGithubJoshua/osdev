@@ -1,6 +1,8 @@
 #include "iodebug.h"
 #include <limine.h>
+#include <lai/helpers/pm.h>
 #include "fb.h"
+#include "timer.h"
 #include "flanterm/flanterm.h"
 #include "flanterm/backends/fb.h"
 #include "font.c"
@@ -141,6 +143,12 @@ void keyboard_handler() {
         case 0x0E:
           flanterm_write(ft_ctx, "\x1B[P", 4);
           break;
+        case 0x3B:
+          flanterm_write(flanterm_get_ctx(), "\033[33m", 5);
+          flanterm_write(ft_ctx, "[ACPI] Resetting system...\n", 27);
+          flanterm_write(ft_ctx, "System is going down!", 22);
+          timer_wait(50);
+          lai_acpi_reset();
         }
     }
 }

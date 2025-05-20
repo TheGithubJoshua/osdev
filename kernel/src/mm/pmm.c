@@ -31,6 +31,7 @@ static volatile struct limine_memmap_request memmap_request = {
 
 uint64_t bitmap_pages;
 uint64_t bitmap_size;
+
 uint8_t *bitmap;
 static uint64_t free_pages;
 static uint64_t page_cache[PAGE_CACHE_SIZE];

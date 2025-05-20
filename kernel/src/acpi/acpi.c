@@ -1,7 +1,9 @@
 #include <limine.h>
 #include <stddef.h>
 #include <stdint.h>
+#include <lai/core.h>
 #include "memory.h"
+#include "acpi.h"
 #include "iodebug.h"
 
 // Set the base revision to 3, this is recommended as this is the latest
@@ -49,13 +51,6 @@ static volatile LIMINE_REQUESTS_END_MARKER;
 
     return 0;
 }*/
-
-typedef struct rsdp_t {
-    char signature[8];
-    uint8_t checksum;
-    char oem_id[6];
-    uint8_t revision;
-} rsdp_t;
 
 typedef struct {
     rsdp_t base;
@@ -304,3 +299,26 @@ fadt_t *get_fadt(void *RootSDT) {
     return fadt;
 }*/
 
+void *get_table(const char* signature, size_t index) {
+    // Currently only supports 'DSDT' and 'FACP' and ignores index
+
+    if (strncmp(signature, "DSDT", 4) == 0) {
+        fadt_t *fadt = (fadt_t *)get_fadt(get_xsdt_table());
+        void *dsdt_virt = (void *)((uintptr_t)fadt->Dsdt + get_phys_offset());
+        if (fadt == NULL) {
+            serial_puts("FADT not found");
+            return NULL;
+        }
+        return dsdt_virt;
+    } else if (strncmp(signature, "FACP", 4) == 0) {
+        fadt_t *fadt = (fadt_t *)get_fadt(get_xsdt_table());
+        if (fadt == NULL) {
+            serial_puts("FADT not found");
+            return NULL;
+        }
+        return (void *)fadt;
+    }
+
+    // If signature is unsupported
+    return NULL;
+}
