@@ -2,7 +2,7 @@
 #include <stdbool.h>
 #include <stdint.h>
 #include "timer.h"
-#include "keyboard.h"
+#include "drivers/keyboard.h"
 #include "iodebug.h"
 // TODO: when returning from interrupt (fault) skip over faulting proccess after restore.
 // TODO: check if iretq just returns to start of handling interrupt.

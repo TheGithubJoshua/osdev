@@ -85,9 +85,6 @@ override LDFLAGS += \
     -Wl,--gc-sections \
     -T linker.ld
 
-FLANTERM_SRCS = ../flanterm/flanterm.c ../flanterm/backend/fb.c
-FLANTERM_OBJS = $(FLANTERM_SRCS:.c=.o)
-
 # Use "find" to glob all *.c, *.S, and *.asm files in the tree and obtain the
 # object and header dependency file names.
 override SRCFILES := $(shell cd src && find -L * -type f | LC_ALL=C sort)

@@ -4,10 +4,12 @@
 #include <limine.h>
 #include "iodebug.h"
 #include "interrupts.h"
-#include "acpi.h"
+#include "acpi/acpi.h"
+#include "mm/pmm.h"
 #include "timer.h"
 #include "fb.h"
-#include "flanterm/flanterm.h"
+#include "memory.h"
+//#include "liballoc/liballoc.h"
 #include "flanterm/backends/fb.h"
 #include "font.c"
 
@@ -38,57 +40,6 @@ static volatile LIMINE_REQUESTS_END_MARKER;
 // DO NOT remove or rename these functions, or stuff will eventually break!
 // They CAN be moved to a different .c file.
 
-void *memcpy(void *restrict dest, const void *restrict src, size_t n) {
-    uint8_t *restrict pdest = (uint8_t *restrict)dest;
-    const uint8_t *restrict psrc = (const uint8_t *restrict)src;
-
-    for (size_t i = 0; i < n; i++) {
-        pdest[i] = psrc[i];
-    }
-
-    return dest;
-}
-
-void *memset(void *s, int c, size_t n) {
-    uint8_t *p = (uint8_t *)s;
-
-    for (size_t i = 0; i < n; i++) {
-        p[i] = (uint8_t)c;
-    }
-
-    return s;
-}
-
-void *memmove(void *dest, const void *src, size_t n) {
-    uint8_t *pdest = (uint8_t *)dest;
-    const uint8_t *psrc = (const uint8_t *)src;
-
-    if (src > dest) {
-        for (size_t i = 0; i < n; i++) {
-            pdest[i] = psrc[i];
-        }
-    } else if (src < dest) {
-        for (size_t i = n; i > 0; i--) {
-            pdest[i-1] = psrc[i-1];
-        }
-    }
-
-    return dest;
-}
-
-int memcmp(const void *s1, const void *s2, size_t n) {
-    const uint8_t *p1 = (const uint8_t *)s1;
-    const uint8_t *p2 = (const uint8_t *)s2;
-
-    for (size_t i = 0; i < n; i++) {
-        if (p1[i] != p2[i]) {
-            return p1[i] < p2[i] ? -1 : 1;
-        }
-    }
-
-    return 0;
-}
-
 // Halt and catch fire function.
 static void hcf(void) {
     for (;;) {
@@ -98,68 +49,6 @@ static void hcf(void) {
 
 // im putting io here bc im lazy
 // not anymore
-
-// Render the glyph at position (x, y) with foreground color `fg_color`
-/*void draw(uint32_t x, uint32_t y, uint8_t glyph[16], uint32_t fg_color) {
-    struct limine_framebuffer *fb = framebuffer_request.response->framebuffers[0];
-    for (uint32_t row = 0; row < 16; row++) {
-        uint8_t row_data = glyph[row];
-        for (uint32_t col = 0; col < 8; col++) {
-            // Check if the bit is set (pixel should be colored)
-            if (row_data & (0x80 >> col)) {
-                uint32_t *pixel = (uint32_t*)((uint8_t*)fb->address + (y + row) * fb->pitch + (x + col) * 4);
-                *pixel = fg_color; // Set pixel to foreground color (e.g., white)
-            }
-        }
-    }
-}
-
-void draw_text(uint32_t x, uint32_t y, const char *text, uint32_t fg_color) {
-    struct limine_framebuffer *fb = framebuffer_request.response->framebuffers[0];
-    uint32_t original_x = x; // For newline handling
-    uint32_t max_x = fb->width - 8; // Right edge (8px char width)
-    uint32_t max_y = fb->height - 16; // Bottom edge (16px char height)
-
-    while (*text && y <= max_y) {
-        switch (*text) {
-            case '\n': // Newline
-                x = original_x;
-                y += 16;
-                break;
-                
-            case '\t': // Tab (4 spaces)
-                x = original_x + ((x - original_x + 32) / 32) * 32;
-                if (x > max_x) {
-                    x = original_x;
-                    y += 16;
-                }
-                break;
-                
-            case '\r': // Carriage return
-                x = original_x;
-                break;
-                
-            default:
-                if (*text >= 0x20 && *text <= 0x7F) { // Printable ASCII
-                    if (x <= max_x) {
-                        draw(x, y, font[(uint8_t)*text], fg_color);
-                        x += 8;
-                    }
-                }
-                // Non-printable chars are ignored
-                break;
-        }
-        
-        // Handle line wrapping
-        if (x > max_x) {
-            x = original_x;
-            y += 16;
-        }
-        
-        text++;
-    }
-}
-*/
 
 static inline bool are_interrupts_enabled()
 {
@@ -221,6 +110,31 @@ void int_to_str(int value, char *str) {
 // If renaming kmain() to something else, make sure to change the
 // linker script accordingly.
 
+void test_palloc() {
+    struct flanterm_context *ft_ctx = flanterm_get_ctx();
+    void *ptr = palloc(1, true);  // Allocate 1 page, map to higher half
+
+    if (!ptr) {
+        serial_puts("palloc() failed: returned NULL\n");
+        return;
+    }
+
+    serial_puts("palloc() returned address: ");
+    serial_puthex((uintptr_t)ptr);
+    serial_puts("\n");
+
+    // Test writing to the allocated memory
+    memset(ptr, 0xAA, PAGE_SIZE);
+
+    // Test reading back
+    if (((uint8_t *)ptr)[0] != 0xAA) {
+        flanterm_write(ft_ctx, "palloc memory test failed: value mismatch\n", 38);
+    } else {
+        flanterm_write(ft_ctx, "palloc memory test passed\n", 27);
+        pfree(ptr, 1);
+    }
+}
+
 void kmain(void) {
 
     // Ensure the bootloader actually understands our base revision (see spec).
@@ -248,10 +162,10 @@ void kmain(void) {
     get_fadt(get_xsdt_table());
 
     init_flanterm();
-    struct flanterm_context *ft_ctx = NULL;
+    struct flanterm_context *ft_ctx = flanterm_get_ctx();
+    pmm_init();
     
     beep();
-
     // Note: we assume the framebuffer model is RGB with 32-bit pixels.
 //    for (size_t i = 0; i < 100; i++) {
 //        volatile uint32_t *fb_ptr = framebuffer->address;
@@ -264,9 +178,9 @@ asm("int $0");
 serial_puts("hello \n");
 flanterm_write(ft_ctx, "Welcome\n", 9);
 
+test_palloc();
 
-    // We're done, just hang...
-//while (true)
+// We're done, just hang...
     hcf();
 }
 
