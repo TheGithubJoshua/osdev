@@ -1,5 +1,6 @@
 #include <limine.h>
 #include <stddef.h>
+#include <stdint.h>
 #include "memory.h"
 #include "iodebug.h"
 
