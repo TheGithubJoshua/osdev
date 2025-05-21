@@ -2,6 +2,8 @@
 #include <stddef.h>
 #include <stdbool.h>
 #include <limine.h>
+#include <lai/helpers/pm.h>
+#include <lai/helpers/sci.h>
 #include "iodebug.h"
 #include "interrupts.h"
 #include "acpi/acpi.h"
@@ -10,8 +12,10 @@
 #include "timer.h"
 #include "fb.h"
 #include "memory.h"
+#include "cpu/msr.h"
 //#include "liballoc/liballoc.h"
 #include "flanterm/backends/fb.h"
+#include "apic.h"
 #include "font.c"
 
 // Set the base revision to 3, this is recommended as this is the latest
@@ -136,6 +140,47 @@ void test_palloc() {
     }
 }
 
+void log_acpi_subtree(lai_nsnode_t* parent, int depth) {
+    struct lai_ns_child_iterator iter = LAI_NS_CHILD_ITERATOR_INITIALIZER(parent);
+    lai_nsnode_t* node;
+
+    while ((node = lai_ns_child_iterate(&iter))) {
+        for (int i = 0; i < depth; i++) serial_puts("  ");
+        serial_puts("Node: ");
+        serial_puts(node->name);
+        serial_puts("\n");
+        log_acpi_subtree(node, depth + 1);
+    }
+}
+
+void log_acpi_namespace(void) {
+    lai_nsnode_t* root = lai_resolve_path(NULL, "\\");
+    struct lai_ns_child_iterator iter = LAI_NS_CHILD_ITERATOR_INITIALIZER(root);
+    lai_nsnode_t* node;
+
+    while ((node = lai_ns_child_iterate(&iter))) {
+        serial_puts("ACPI Node: ");
+        serial_puts(node->name);
+        serial_puts("\n");
+
+        // Recursively log children
+        log_acpi_subtree(node, 1);
+    }
+}
+
+void test_pci_readb() {
+    uint16_t seg = 0;      // Usually 0 if you have only one PCI segment
+    uint8_t bus = 0;       // Bus 0 usually exists
+    uint8_t slot = 0;      // Device 0 on bus 0
+    uint8_t fun = 0;       // Function 0
+    uint16_t offset = 0x00; // Vendor ID offset
+
+    uint8_t val = laihost_pci_readb(seg, bus, slot, fun, offset);
+    // Vendor ID is 2 bytes, so reading offset 0x00 gives the low byte
+    serial_puts("PCI Vendor ID (low byte): ");
+    serial_puthex(val);
+}
+
 void kmain(void) {
 
     // Ensure the bootloader actually understands our base revision (see spec).
@@ -155,20 +200,30 @@ void kmain(void) {
     idt_init();
     //irq_unmask_all();
     irq_remap();
-    timer_phase(100); // 100 Hz
     //timer_handler();
+    enable_apic();
+    timer_phase(100); // 100 Hz
+    apic_start_timer();
 
     rsdp_t *rsdp = get_acpi_table();
     struct xsdt_t *xsdt = get_xsdt_table();
-    get_fadt(get_xsdt_table());
+    fadt_t *fadt = get_fadt(get_xsdt_table());
 
     init_flanterm();
     struct flanterm_context *ft_ctx = flanterm_get_ctx();
     pmm_init();
-    lai_set_acpi_revision(rsdp->revision);
+
+    //timer_wait(5);
     lai_create_namespace();
+    lai_set_acpi_revision(rsdp->revision);
+    //lai_enable_acpi(0);
+    outb(fadt->SMI_CommandPort,fadt->AcpiEnable);
+    uint16_t val = inw(fadt->PM1aControlBlock);
+    bool acpi_enabled = val & 1;
+    if (acpi_enabled)
+        serial_puts("acpi enabled! \n");
     
-    beep();
+    //beep();
     // Note: we assume the framebuffer model is RGB with 32-bit pixels.
 //    for (size_t i = 0; i < 100; i++) {
 //        volatile uint32_t *fb_ptr = framebuffer->address;
@@ -181,7 +236,9 @@ asm("int $0");
 serial_puts("hello \n");
 flanterm_write(ft_ctx, "Welcome!\n", 10);
 
+log_acpi_namespace();
 test_palloc();
+//test_pci_readb();
 
 // We're done, just hang...
     hcf();

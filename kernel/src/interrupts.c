@@ -4,6 +4,7 @@
 #include "timer.h"
 #include "drivers/keyboard.h"
 #include "iodebug.h"
+#include "apic.h"
 // TODO: when returning from interrupt (fault) skip over faulting proccess after restore.
 // TODO: check if iretq just returns to start of handling interrupt.
 #define GDT_OFFSET_KERNEL_CODE 0x28
@@ -103,7 +104,12 @@ void exception_handler(uint64_t vector) {
         serial_puts("general protection fault");
         break;
     case 14:
-        serial_puts("page fault");
+        serial_puts("page fault \n");
+        serial_puts("CR2 dump incoming... \n");
+        uintptr_t val;
+        asm volatile ("mov %%cr2, %0" : "=r"(val));
+        serial_puthex(val);
+        asm volatile ("cli; hlt");
         break;
     case 15:
         serial_puts("reserved");
@@ -214,13 +220,18 @@ void irq_handler(uint64_t vector) {
     case 47:
         serial_puts("IRQ 15!");
         break;
+    default:
+        serial_puts("Unknown IRQ!");
+        break;
     }
+
 
     if (vector >= 40) {
         outb(0xA0, 0x20); // send EOI to slave PIC
     }
 
     outb(0x20, 0x20); // send EOI to master PIC
+    apic_write(0xB0, 0);
 
 }
 

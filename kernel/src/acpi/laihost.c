@@ -63,14 +63,47 @@ void *laihost_scan(const char *sig, size_t count) {
 }
 
 void laihost_outb(uint16_t port, uint8_t val) { outb(port, val); }
-void laihost_outw(uint16_t port, uint16_t val) { outb(port, val); }
-void laihost_outd(uint16_t port, uint32_t val) { outb(port, val); }
+void laihost_outw(uint16_t port, uint16_t val) { outw(port, val); }
+void laihost_outd(uint16_t port, uint32_t val) { outd(port, val); }
 
 uint8_t laihost_inb(uint16_t port) { return inb(port); }
-uint16_t laihost_inw(uint16_t port) { return inb(port); }
-uint32_t laihost_ind(uint16_t port) { return inb(port); }
+uint16_t laihost_inw(uint16_t port) { return inw(port); }
+uint32_t laihost_ind(uint16_t port) { return ind(port); }
 
-// TODO: PCI
+uint8_t laihost_pci_readb(uint16_t seg, uint8_t bus, uint8_t slot, uint8_t func, uint16_t offset) {
+    (void)seg;
+    outd(0xCF8, (bus << 16) | (slot << 11) | (func << 8) | (offset & 0xfffc) | 0x80000000);
+    uint8_t v = inb(0xCFC + (offset & 3));
+    return v;
+}
+uint16_t laihost_pci_readw(uint16_t seg, uint8_t bus, uint8_t slot, uint8_t func, uint16_t offset) {
+    (void)seg;
+    outd(0xCF8, (bus << 16) | (slot << 11) | (func << 8) | (offset & 0xfffc) | 0x80000000);
+    uint16_t v = inw(0xCFC + (offset & 2));
+    return v;
+}
+uint32_t laihost_pci_readd(uint16_t seg, uint8_t bus, uint8_t slot, uint8_t func, uint16_t offset) {
+    (void)seg;
+    outd(0xCF8, (bus << 16) | (slot << 11) | (func << 8) | (offset & 0xfffc) | 0x80000000);
+    uint32_t v = ind(0xCFC);
+    return v;
+}
+
+void laihost_pci_writeb(uint16_t seg, uint8_t bus, uint8_t dev, uint8_t fun, uint16_t off, uint8_t val) {
+    (void)seg;
+    outd(0xCF8, (bus << 16) | (dev << 11) | (fun << 8) | (off & 0xfffc) | 0x80000000);
+    outb(0xCFC + (off & 3), val);
+}
+void laihost_pci_writew(uint16_t seg, uint8_t bus, uint8_t dev, uint8_t fun, uint16_t off, uint16_t val) {
+    (void)seg;
+    outd(0xCF8, (bus << 16) | (dev << 11) | (fun << 8) | (off & 0xfffc) | 0x80000000);
+    outw(0xCFC + (off & 2), val);
+}
+void laihost_pci_writed(uint16_t seg, uint8_t bus, uint8_t dev, uint8_t fun, uint16_t off, uint32_t val) {
+    (void)seg;
+    outd(0xCF8, (bus << 16) | (dev << 11) | (fun << 8) | (off & 0xfffc) | 0x80000000);
+    outd(0xCFC, val);
+}
 
 void laihost_sleep(uint64_t ms) { timer_wait(ms * 10); }
 

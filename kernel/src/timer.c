@@ -1,4 +1,5 @@
 #include "iodebug.h"
+#include "apic.h"
 
 int timer_ticks = 0;
 
@@ -65,3 +66,36 @@ void beep() {
      nosound();
      //set_PIT_2(old_frequency);
 }
+#define APIC_LVT_INT_MASKED (1 << 16)
+
+void apic_start_timer() {
+        // Tell APIC timer to use divider 16
+        apic_write(0x3E0, 0x3);
+ 
+        // Set APIC init counter to -1
+        apic_write(0x380, 0xFFFFFFFF);
+
+        // Prepare the PIT to sleep for 10ms (10000µs)
+        timer_wait(10);
+  
+        // Stop the APIC timer
+        apic_write(0x320, APIC_LVT_INT_MASKED);
+ 
+        // Now we know how often the APIC timer has ticked in 10ms
+        uint32_t ticksIn10ms = 0xFFFFFFFF - apic_read(0x390);
+ 
+        // Start timer as periodic on IRQ 0, divider 16, with the number of ticks we counted
+        apic_write(0x320, 32 | 0x20000);
+        apic_write(0x3E0, 0x3);
+        apic_write(0x380, ticksIn10ms);
+        #define PIC1        0x20        /* IO base address for master PIC */
+        #define PIC2        0xA0        /* IO base address for slave PIC */
+        #define PIC1_COMMAND    PIC1
+        #define PIC1_DATA   (PIC1+1)
+        #define PIC2_COMMAND    PIC2
+        #define PIC2_DATA   (PIC2+1)
+        outb(0x21, inb(0x21) | 0x01);
+}
+
+
+

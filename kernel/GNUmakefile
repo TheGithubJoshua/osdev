@@ -14,6 +14,7 @@ CC := cc
 
 # User controllable C flags.
 CFLAGS := -g -O2 -pipe -Isrc/lai/include/
+CFLAGS += -isystem /usr/lib/gcc/$(shell $(CC) -dumpmachine)/$(shell $(CC) -dumpversion)/include
 
 # User controllable C preprocessor flags. We set none by default.
 CPPFLAGS :=

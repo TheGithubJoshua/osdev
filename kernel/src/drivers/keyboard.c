@@ -145,10 +145,10 @@ void keyboard_handler() {
           break;
         case 0x3B:
           flanterm_write(flanterm_get_ctx(), "\033[33m", 5);
-          flanterm_write(ft_ctx, "[ACPI] Resetting system...\n", 27);
+          flanterm_write(ft_ctx, "[ACPI] Shutting down system...\n", 27);
           flanterm_write(ft_ctx, "System is going down!", 22);
-          timer_wait(50);
-          lai_acpi_reset();
+          //timer_wait(50);
+          lai_enter_sleep(5);
         }
     }
 }
