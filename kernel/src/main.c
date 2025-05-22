@@ -239,6 +239,14 @@ flanterm_write(ft_ctx, "Welcome!\n", 10);
 log_acpi_namespace();
 test_palloc();
 //test_pci_readb();
+uint32_t ioapic_ver = read_ioapic_register(IOAPIC_VIRT_ADDR, 0x01);
+uint8_t version = ioapic_ver & 0xFF;
+uint8_t max_redir_entries = ((ioapic_ver >> 16) & 0xFF) + 1;
+
+serial_puts("IOAPIC Version: ");
+serial_puthex(version);
+serial_puts(", Redir entries: ");
+serial_puthex(max_redir_entries);
 
 // We're done, just hang...
     hcf();
