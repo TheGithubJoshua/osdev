@@ -1,7 +1,7 @@
 #include "iodebug.h"
 #include <limine.h>
 #include <lai/helpers/pm.h>
-#include "fb.h"
+#include "../util/fb.h"
 #include "timer.h"
 #include "flanterm/flanterm.h"
 #include "flanterm/backends/fb.h"

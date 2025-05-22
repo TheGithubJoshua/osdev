@@ -1,5 +1,5 @@
 #include <stdint.h>
-#include "iodebug.h"
+#include "../iodebug.h"
 
 // COM1 ports
 #define COM1_PORT 0x3F8

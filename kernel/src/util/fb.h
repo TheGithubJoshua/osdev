@@ -1,5 +1,5 @@
 #include <stdint.h>
-#include "flanterm/flanterm.h"
+#include "../flanterm/flanterm.h"
 
 //static struct flanterm_context *ft_ctx = NULL;
 

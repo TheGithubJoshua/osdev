@@ -1,9 +1,9 @@
 #include <stdint.h>
 #include <cpuid.h>
-#include "cpu/msr.h"
-#include "iodebug.h"
-#include "memory.h"
-#include "acpi/acpi.h"
+#include "../cpu/msr.h"
+#include "../iodebug.h"
+#include "../memory.h"
+#include "../acpi/acpi.h"
 
 #define CPUID_FEAT_EDX_APIC (1 << 9)
 #define IA32_APIC_BASE_MSR 0x1B

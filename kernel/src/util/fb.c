@@ -1,6 +1,6 @@
 #include "fb.h"
-#include "flanterm/flanterm.h"
-#include "flanterm/backends/fb.h"
+#include "../flanterm/flanterm.h"
+#include "../flanterm/backends/fb.h"
 #include <limine.h>
 
 __attribute__((used, section(".limine_requests")))

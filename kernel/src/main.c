@@ -5,17 +5,17 @@
 #include <lai/helpers/pm.h>
 #include <lai/helpers/sci.h>
 #include "iodebug.h"
-#include "interrupts.h"
+#include "interrupts/interrupts.h"
 #include "acpi/acpi.h"
 #include "lai/include/lai/core.h"
 #include "mm/pmm.h"
 #include "timer.h"
-#include "fb.h"
+#include "util/fb.h"
 #include "memory.h"
 #include "cpu/msr.h"
 //#include "liballoc/liballoc.h"
 #include "flanterm/backends/fb.h"
-#include "apic.h"
+#include "interrupts/apic.h"
 #include "font.c"
 
 // Set the base revision to 3, this is recommended as this is the latest

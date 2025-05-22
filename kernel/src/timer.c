@@ -1,5 +1,5 @@
 #include "iodebug.h"
-#include "apic.h"
+#include "interrupts/apic.h"
 
 int timer_ticks = 0;
 

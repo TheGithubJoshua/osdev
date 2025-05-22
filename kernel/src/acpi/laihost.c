@@ -3,7 +3,7 @@
 #include "../mm/pmm.h"
 #include "../memory.h"
 #include "../timer.h"
-#include "../fb.h"
+#include "../util/fb.h"
 #include "acpi.h"
 
 void laihost_log(int level, const char *msg) {
