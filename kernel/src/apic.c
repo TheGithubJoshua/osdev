@@ -3,6 +3,7 @@
 #include "cpu/msr.h"
 #include "iodebug.h"
 #include "memory.h"
+#include "acpi/acpi.h"
 
 #define CPUID_FEAT_EDX_APIC (1 << 9)
 #define IA32_APIC_BASE_MSR 0x1B
@@ -41,7 +42,7 @@ uintptr_t get_apic_base() {
 
 void enable_apic() {
 	set_apic_base(get_apic_base());
-	outd(0xF0, ind(0xF0) | 0x100);
+	outd(0xF0, ind(0xF0) | 0x100); // why is this even here.
 }
 
 volatile uint32_t* apic_mmio() {

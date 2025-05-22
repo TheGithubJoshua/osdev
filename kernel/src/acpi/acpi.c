@@ -160,8 +160,7 @@ fadt_t *get_fadt(void *RootSDT) {
         serial_puts("strncmp test failed!\n");
     }
 
-    for (int i = 0; i < entries; i++)
-    {
+    for (int i = 0; i < entries; i++) {
         struct ACPISDTHeader *h = (struct ACPISDTHeader *)((uintptr_t)xsdt->sdtAddresses[i] + get_phys_offset());
         //serial_puts("\n");
         //serial_puthex((uint64_t)(uintptr_t)&h->Signature);
@@ -214,6 +213,63 @@ fadt_t *get_fadt(void *RootSDT) {
 
     return fadt;
 }*/
+
+void *get_madt(void *RootSDT) {
+    xsdt_t *xsdt = (xsdt_t *) RootSDT;
+    int entries = (xsdt->sdtHeader.Length - sizeof(xsdt->sdtHeader)) / 8;
+
+        for (int i = 0; i < entries; i++) {
+        struct ACPISDTHeader *h = (struct ACPISDTHeader *)((uintptr_t)xsdt->sdtAddresses[i] + get_phys_offset());
+
+        if (!strncmp(h->Signature, "APIC", 4)) {
+            serial_puts("\n MADT Found! Loc: ");
+            serial_puthex(xsdt->sdtAddresses[i]);
+            serial_puts("\n");
+            madt_t *madt = (struct madt_t *)((uintptr_t)xsdt->sdtAddresses[i] + get_phys_offset());
+            return madt;
+        }
+    }
+    // no madt :(
+    serial_puts("no madt found :(");
+}
+
+static uint32_t addr;
+
+void parse_madt(madt_t* madt) {
+    uint8_t* end = (uint8_t*)madt + madt->header.Length;
+    uint8_t* ptr = madt->entries;
+
+    while (ptr < end) {
+        uint8_t type = ptr[0];
+        uint8_t len = ptr[1];
+
+        switch (type) {
+            case 0: {
+                // Processor Local APIC
+                uint8_t acpi_id = ptr[2];
+                uint8_t apic_id = ptr[3];
+                uint32_t flags = *(uint32_t*)(ptr + 4);
+                break;
+            }
+            case 1: {
+                // IO APIC
+                uint8_t id = ptr[2];
+                addr = *(uint32_t*)(ptr + 4);
+                uint32_t gsi_base = *(uint32_t*)(ptr + 8);
+                serial_puts("IOAPIC found at ");
+                serial_puthex(addr);
+                serial_puts("!\n");
+                break;
+            }
+            // more here
+        }
+
+        ptr += len;
+    }
+}
+
+uint32_t get_ioapic_addr() { parse_madt(get_madt(get_xsdt_table())); return addr; }
+// more here
 
 void *get_table(const char* signature, size_t index) {
     // Currently only supports 'DSDT' and 'FACP' and ignores index

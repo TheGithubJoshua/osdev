@@ -96,6 +96,13 @@ typedef struct fadt_t {
     GenericAddressStructure X_GPE1Block;
 } fadt_t;
 
+typedef struct madt_t {
+  struct ACPISDTHeader header;
+  uint32_t apic_addr;
+  uint32_t flags;
+  uint8_t entries[];
+} __attribute__((packed)) madt_t;
+
 typedef struct rsdp_ext_t;
 typedef struct fadt_t fadt_t;
 typedef struct GenericAddressStructure GenericAddressStructure;
@@ -105,3 +112,6 @@ struct xsdt_t *get_xsdt_table(void);
 fadt_t *get_fadt(void *RootSDT);
 struct fadt_t *parse_fadt(void);
 void *get_table(const char* signature, size_t index);
+void *get_madt(void *RootSDT);
+void parse_madt(madt_t* madt);
+uint32_t get_ioapic_addr();
