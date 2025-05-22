@@ -28,8 +28,8 @@ typedef struct {
 } __attribute__((packed)) idtr_t;
 
 static idtr_t idtr; // IDTR
-
-/*struct cpu_status_t {
+/*
+typedef struct cpu_status_t {
     uint64_t rax;
     uint64_t rbx;
     uint64_t rcx;
@@ -52,13 +52,45 @@ static idtr_t idtr; // IDTR
     uint64_t iret_cs;
     uint64_t iret_flags;
     uint64_t iret_ss;
-};
+} cpu_status_t;
 */
+
 //__attribute__((noreturn))
-//struct cpu_status_t exception_handler(struct cpu_status_t);
-void exception_handler(uint64_t vector);
+//void exception_handler(uint64_t vector);
 //struct cpu_status_t exception_handler(struct cpu_status_t context) {
-void exception_handler(uint64_t vector) {
+typedef struct cpu_status_t {
+    uint64_t r15;
+    uint64_t r14;
+    uint64_t r13;
+    uint64_t r12;
+    uint64_t r11;
+    uint64_t r10;
+    uint64_t r9;
+    uint64_t r8;
+    uint64_t rbp;
+    uint64_t rdi;
+    uint64_t rsi;
+    uint64_t rdx;
+    uint64_t rcx;
+    uint64_t rbx;
+    uint64_t rax;
+
+    uint64_t vector_number;
+    uint64_t error_code;
+
+    uint64_t iret_rip;
+    uint64_t iret_cs;
+    uint64_t iret_flags;
+    uint64_t iret_rsp;
+    uint64_t iret_ss;
+} cpu_status_t;
+
+
+//cpu_status_t exception_handler(cpu_status_t* cpu_status_t);
+
+void exception_handler(cpu_status_t* cpu_status_t) {
+    uint64_t vector = cpu_status_t->vector_number;
+    serial_puthex(vector);
     //__asm__ volatile ("cli; hlt"); // Completely hangs the computer
     switch (vector) {
     case 0:
@@ -168,7 +200,8 @@ void irq_remap() {
     outb(0xA1, 0x0);
 }
 
-void irq_handler(uint64_t vector) {
+void irq_handler(cpu_status_t* cpu_status_t) {
+    uint64_t vector = cpu_status_t->vector_number;
     switch (vector) {
     case 32:
         //serial_puts("IRQ 0!");
