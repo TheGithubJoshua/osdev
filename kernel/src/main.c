@@ -181,6 +181,53 @@ void test_pci_readb() {
     serial_puthex(val);
 }
 
+void ioapic_unmask_all(uintptr_t ioapic_base) {
+    // Read max IRQs supported from IOAPIC version register
+    uint32_t version = read_ioapic_register(ioapic_base, 0x01);
+    uint8_t max_irq = (version >> 16) & 0xFF;
+
+    for (uint8_t irq = 0; irq <= max_irq; irq++) {
+        // Read existing redirection table entry
+        uint32_t lo = read_ioapic_register(ioapic_base, 0x10 + irq * 2);
+        uint32_t hi = read_ioapic_register(ioapic_base, 0x10 + irq * 2 + 1);
+
+        // Clear mask bit (bit 16)
+        lo &= ~(1 << 16);
+
+        // Optionally set a fixed interrupt vector (e.g., 0x20 + irq)
+        lo = (lo & ~0xFF) | (0x20 + irq);  // Just an example
+
+        // Rewrite redirection entry
+        write_ioapic_register(ioapic_base, 0x10 + irq * 2, lo);
+        write_ioapic_register(ioapic_base, 0x10 + irq * 2 + 1, hi);
+    }
+}
+
+void ioapic_remap_irq(uintptr_t ioapic_base, uint8_t irq, uint8_t vector, uint8_t apic_id) {
+    uint32_t entry_low = 0;
+    uint32_t entry_high = 0;
+
+    // Set interrupt vector
+    entry_low = vector;
+
+    // Delivery mode = 0 (fixed)
+    // Trigger mode = 0 (edge) for legacy IRQs
+    // Polarity = 0 (active high)
+    // Mask = 0 (enabled)
+
+    // Set destination APIC ID
+    entry_high = ((uint32_t)apic_id) << 24;
+
+    write_ioapic_register(ioapic_base, 0x10 + irq * 2, entry_low);
+    write_ioapic_register(ioapic_base, 0x10 + irq * 2 + 1, entry_high);
+}
+
+void ioapic_remap_all(uintptr_t ioapic_base, uint8_t apic_id) {
+    for (uint8_t irq = 0; irq < 16; irq++) {
+        ioapic_remap_irq(ioapic_base, irq, 0x20 + irq, apic_id);
+    }
+}
+
 void kmain(void) {
 
     // Ensure the bootloader actually understands our base revision (see spec).
@@ -223,7 +270,7 @@ void kmain(void) {
     if (acpi_enabled)
         serial_puts("acpi enabled! \n");
     
-    //beep();
+    beep();
     // Note: we assume the framebuffer model is RGB with 32-bit pixels.
 //    for (size_t i = 0; i < 100; i++) {
 //        volatile uint32_t *fb_ptr = framebuffer->address;
@@ -236,7 +283,7 @@ asm("int $0");
 serial_puts("hello \n");
 flanterm_write(ft_ctx, "Welcome!\n", 10);
 
-log_acpi_namespace();
+//log_acpi_namespace();
 test_palloc();
 //test_pci_readb();
 uint32_t ioapic_ver = read_ioapic_register(IOAPIC_VIRT_ADDR, 0x01);
@@ -247,6 +294,11 @@ serial_puts("IOAPIC Version: ");
 serial_puthex(version);
 serial_puts(", Redir entries: ");
 serial_puthex(max_redir_entries);
+
+uintptr_t ioapic_base = get_ioapic_addr() + get_phys_offset(); // or mapped address
+uint8_t apic_id = 0; // CPU's LAPIC ID
+ioapic_remap_all(ioapic_base, apic_id);
+ioapic_unmask_all(ioapic_base);
 
 // We're done, just hang...
     hcf();

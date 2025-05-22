@@ -179,7 +179,7 @@ void irq_handler(uint64_t vector) {
         keyboard_handler();
         break;
     case 34:
-        serial_puts("IRQ 2!");
+        //serial_puts("IRQ 2!");
         break;
     case 35:
         serial_puts("IRQ 3!");

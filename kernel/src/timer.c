@@ -62,7 +62,7 @@ void nosound() {
 // make a beep
 void beep() {
      play_sound(440);
-     timer_wait(20);
+     timer_wait(2);
      nosound();
      //set_PIT_2(old_frequency);
 }
@@ -94,7 +94,10 @@ void apic_start_timer() {
         #define PIC1_DATA   (PIC1+1)
         #define PIC2_COMMAND    PIC2
         #define PIC2_DATA   (PIC2+1)
-        outb(0x21, inb(0x21) | 0x01);
+        //outb(0x21, inb(0x21) | 0x01);
+        // disable
+        outb(PIC1_DATA, 0xff);
+        outb(PIC2_DATA, 0xff);
 }
 
 
