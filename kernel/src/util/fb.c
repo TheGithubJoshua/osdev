@@ -13,7 +13,7 @@ static volatile struct limine_framebuffer_request framebuffer_request = {
 static struct flanterm_context *ft_ctx = NULL;
 
 void init_flanterm() {
-    struct limine_framebuffer *fb = framebuffer_request.response->framebuffers[0];
+struct limine_framebuffer *fb = framebuffer_request.response->framebuffers[0];
 
     ft_ctx = flanterm_fb_init(
         NULL, NULL,
@@ -25,6 +25,24 @@ void init_flanterm() {
         NULL, 0, 0, 1,
         0, 0, 0
     );
+}
+
+void draw_image(uint32_t *img, int img_w, int img_h, int x, int y) {
+    struct limine_framebuffer *fb = framebuffer_request.response->framebuffers[0];
+    uint32_t *fb_ptr = (uint32_t *)fb->address;
+    
+    // Boundary checking
+    if (x < 0 || y < 0 || (x + img_w) > fb->width || (y + img_h) > fb->height) {
+        return;  // Image would be drawn outside framebuffer
+    }
+
+    for (int dy = 0; dy < img_h; dy++) {
+        for (int dx = 0; dx < img_w; dx++) {
+            int fb_pos = (y + dy) * fb->width + (x + dx);
+            int img_pos = dy * img_w + dx;
+            fb_ptr[fb_pos] = img[img_pos];
+        }
+    }
 }
 
 struct flanterm_context *flanterm_get_ctx() {

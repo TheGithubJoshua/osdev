@@ -8,5 +8,6 @@ void draw_text(uint32_t x, uint32_t y, const char *text, uint32_t fg_color);
 void write(const char *str, size_t len);
 
 void init_flanterm();
+void draw_image(uint32_t *img, int img_w, int img_h, int x, int y);
 struct flanterm_context *flanterm_get_ctx();
 

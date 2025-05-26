@@ -1,7 +1,10 @@
 #include "iodebug.h"
 #include "interrupts/apic.h"
+#include "timer.h"
+#include "scheduler/scheduler.h"
 
 int timer_ticks = 0;
+volatile bool preempt_pending;
 
 void timer_phase(int hz) {
     int divisor = 1193180 / hz;   /* Calculate our divisor */
@@ -16,7 +19,8 @@ void timer_handler() {
     if (timer_ticks % 100 == 0)
     {
         //serial_puts("One second has passed\n");
-    }
+    }    
+
 }
 
 // wait function

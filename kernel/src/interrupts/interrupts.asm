@@ -1,3 +1,5 @@
+extern current_task
+
 %macro isr_err_stub 1
 isr_stub_%+%1:
     push qword %1
@@ -85,6 +87,7 @@ isr_stub_%+%1:
 
 %macro isr_irq_stub 1
 isr_stub_%+%1:
+extern beep
     push qword 0
     push qword %1
     push rax
@@ -124,6 +127,7 @@ isr_stub_%+%1:
     pop rax
     add rsp, 16      ; Discard error code
     iretq
+    call beep ; beep
 %endmacro
 
 extern exception_handler

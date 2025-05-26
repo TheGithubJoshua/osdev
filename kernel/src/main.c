@@ -4,6 +4,7 @@
 #include <limine.h>
 #include <lai/helpers/pm.h>
 #include <lai/helpers/sci.h>
+#include "flanterm/flanterm.h"
 #include "iodebug.h"
 #include "interrupts/interrupts.h"
 #include "acpi/acpi.h"
@@ -12,6 +13,7 @@
 #include "timer.h"
 #include "util/fb.h"
 #include "memory.h"
+#include "scheduler/scheduler.h"
 #include "cpu/msr.h"
 //#include "liballoc/liballoc.h"
 #include "flanterm/backends/fb.h"
@@ -243,9 +245,9 @@ void kmain(void) {
 */
 
 /* get shit setup */
-    
     idt_init();
     //irq_unmask_all();
+    
     irq_remap();
     //timer_handler();
     enable_apic();
@@ -259,7 +261,7 @@ void kmain(void) {
     init_flanterm();
     struct flanterm_context *ft_ctx = flanterm_get_ctx();
     pmm_init();
-
+    //initialise_multitasking();
     //timer_wait(5);
     lai_create_namespace();
     lai_set_acpi_revision(rsdp->revision);
@@ -299,6 +301,7 @@ uintptr_t ioapic_base = get_ioapic_addr() + get_phys_offset(); // or mapped addr
 uint8_t apic_id = 0; // CPU's LAPIC ID
 ioapic_remap_all(ioapic_base, apic_id);
 ioapic_unmask_all(ioapic_base);
+initialise_multitasking();
 
 // We're done, just hang...
     hcf();
