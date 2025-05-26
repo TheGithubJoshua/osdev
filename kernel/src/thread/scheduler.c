@@ -3,6 +3,7 @@
 #include "../util/fb.h"
 #include "thread.h"
 #include "../iodebug.h"
+#include "../drivers/pci/pci.h"
 #include "../timer.h"
 
 volatile bool multitasking_initialized = false;
@@ -46,6 +47,11 @@ void boot_task() {
         serial_puts("Boot task running again!\n");
         timer_wait(10); // Sleep so others can run
     }
+}
+
+void beep_task() {
+    beep();
+    task_exit();
 }
 
 void task_d(void) {
@@ -222,10 +228,12 @@ void initialise_multitasking(void) {
     current_task->next = current_task;
 
     // 2) Create additional tasks — these will be inserted after current_task
-    create_task(task_a);
-    create_task(task_b);
-    create_task(task_c);
-    create_task(task_d);
+    //create_task(task_a);
+    //create_task(task_b);
+    //create_task(task_c);
+    //create_task(task_d);
+    create_task(pci_init);
+    create_task(beep_task);
 
     debug_task_list();
 

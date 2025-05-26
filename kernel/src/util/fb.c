@@ -48,3 +48,13 @@ void draw_image(uint32_t *img, int img_w, int img_h, int x, int y) {
 struct flanterm_context *flanterm_get_ctx() {
     return ft_ctx;
 }
+
+void uint16_to_hex(uint16_t val, char *out) {
+    const char *hex = "0123456789ABCDEF";
+    for (int i = 0; i < 4; ++i) {
+        out[3 - i] = hex[val & 0xF];
+        val >>= 4;
+    }
+    out[4] = '\0'; // null-terminate
+}
+

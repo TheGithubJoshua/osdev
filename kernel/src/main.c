@@ -272,7 +272,7 @@ void kmain(void) {
     if (acpi_enabled)
         serial_puts("acpi enabled! \n");
     
-    beep();
+    //beep();
     // Note: we assume the framebuffer model is RGB with 32-bit pixels.
 //    for (size_t i = 0; i < 100; i++) {
 //        volatile uint32_t *fb_ptr = framebuffer->address;
