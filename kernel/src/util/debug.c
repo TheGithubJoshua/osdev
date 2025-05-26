@@ -1,5 +1,6 @@
 #include <stdint.h>
 #include "../iodebug.h"
+#include "../thread/thread.h"
 
 // COM1 ports
 #define COM1_PORT 0x3F8
@@ -8,6 +9,9 @@
 #define COM1_LINE_CTL     (COM1_PORT + 3)
 #define COM1_MODEM_CTL    (COM1_PORT + 4)
 #define COM1_LINE_STATUS  (COM1_PORT + 5)
+
+// serial lock
+spinlock_t serial_lock;
 
 // Initialize COM1 for debugging
 void serial_init() {
@@ -31,9 +35,12 @@ void serial_init() {
 
 // Send a single character to COM1
 void serial_putc(char c) {
+    // aqcuire spinlock
+    acquire(&serial_lock);
     // Wait until the Transmitter Holding Register is empty (bit 5 of LSR)
     while ((inb(COM1_LINE_STATUS) & 0x20) == 0);
     outb(COM1_DATA_PORT, c);
+    release(&serial_lock);
 }
 
 // Send a string to COM1

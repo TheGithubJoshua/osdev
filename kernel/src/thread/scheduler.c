@@ -1,7 +1,7 @@
 #include <stdint.h>
 #include "../mm/pmm.h"
 #include "../util/fb.h"
-#include "scheduler.h"
+#include "thread.h"
 #include "../iodebug.h"
 #include "../timer.h"
 

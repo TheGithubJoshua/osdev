@@ -1,7 +1,7 @@
 #include "iodebug.h"
 #include "interrupts/apic.h"
 #include "timer.h"
-#include "scheduler/scheduler.h"
+#include "thread/thread.h"
 
 volatile int timer_ticks = 0;
 volatile bool preempt_pending;

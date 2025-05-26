@@ -13,7 +13,7 @@
 #include "timer.h"
 #include "util/fb.h"
 #include "memory.h"
-#include "scheduler/scheduler.h"
+#include "thread/thread.h"
 #include "cpu/msr.h"
 //#include "liballoc/liballoc.h"
 #include "flanterm/backends/fb.h"

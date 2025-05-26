@@ -5,7 +5,7 @@
 #include "../drivers/keyboard.h"
 #include "../iodebug.h"
 #include "interrupts.h"
-#include "../scheduler/scheduler.h"
+#include "../thread/thread.h"
 #include "apic.h"
 
 //extern volatile bool multitasking_initialized;
