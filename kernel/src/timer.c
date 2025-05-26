@@ -3,7 +3,7 @@
 #include "timer.h"
 #include "scheduler/scheduler.h"
 
-int timer_ticks = 0;
+volatile int timer_ticks = 0;
 volatile bool preempt_pending;
 
 void timer_phase(int hz) {
@@ -16,7 +16,7 @@ void timer_phase(int hz) {
 
 void timer_handler() {
     timer_ticks++;
-    if (timer_ticks % 100 == 0)
+    if (timer_ticks % 10 == 0)
     {
         //serial_puts("One second has passed\n");
     }    
@@ -36,6 +36,13 @@ void timer_wait(int ticks)
                       "cli");
     }
     __asm__ __volatile__ ("sti");
+}
+
+// get system uptime (in ms)
+size_t uptime() {
+    size_t ticks = timer_ticks;
+    size_t ms = ticks * 10; // Assuming timer_ticks increments every 10ms
+    return ms;
 }
 
 // play sounnd with PC speaker

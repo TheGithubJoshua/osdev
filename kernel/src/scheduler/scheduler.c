@@ -7,14 +7,14 @@
 
 volatile bool multitasking_initialized = false;
 
-enum { TASK_RUNNING, TASK_READY };
-
 // Pointers to the current task (running) and head of task list.
 task_t *current_task = NULL;
 
 // Forward declaration of the second task’s entry function.
 void second_task_function(void);
 task_t *create_task(void (*entry)(void));
+void task_exit();
+void task_sleep(task_t* task, size_t sleep);
 
 extern task_t *current_task;
 
@@ -49,30 +49,35 @@ void boot_task() {
 }
 
 void task_d(void) {
-    while (1) {
+    //while (1) {
         serial_puts("Task D running\n");
         //yield();
         timer_wait(10);
         serial_puts("Returned to D\n");
-    }
+        task_exit();
+    //}
 }
 
 void task_c(void) {
-    while (1) {
+    //while (1) {
         serial_puts("Task C running\n");
         //yield();
-        timer_wait(10);
-        serial_puts("Returned to C\n");
-    }
+        //timer_wait(1);
+        //serial_puts("Returned to C\n");
+        task_exit();
+    //}
 }
 
 void task_b(void) {
-    while (1) {
+   // while (1) {
         serial_puts("Task B running\n");
         //yield();
-        timer_wait(10);
-        serial_puts("Returned to B\n");
-    }
+        //timer_wait(10);
+        //task_sleep(current_task, 999999999999999999);
+        //serial_puts("Returned to B\n");
+        //timer_wait(1);
+        task_exit();
+    //}
 }
 void debug_task_list(void);
 
@@ -156,6 +161,50 @@ task_t *create_task(void (*entry)(void)) {
     t->next = current_task;
 }
 return t;
+}
+
+void task_free() {
+    task_t* dead = current_task->next;
+
+    // Don't delete if it's the only task left
+    if (dead == current_task) return;
+
+    if (dead->state == DEAD) {
+        // Find the previous task to the one being deleted
+        task_t* prev = current_task;
+        while (prev->next != dead) {
+            prev = prev->next;
+        }
+
+        // Unlink dead task
+        prev->next = dead->next;
+
+        // If current_task was pointing to dead, advance it
+        if (current_task == dead) {
+            current_task = dead->next;
+        }
+
+        // Free stack and TCB
+        pfree((void*)dead->rsp, true);  // Only if stack is page-allocated
+        pfree((void*)dead, true);
+
+        debug_task_list();
+    }
+}
+
+void task_exit() {
+    asm ("sti");
+    current_task->state = DEAD;
+    while(true);
+}
+
+void task_sleep(task_t* task, size_t sleep) {
+    flanterm_write(flanterm_get_ctx(), "\033[33m", 5);
+    flanterm_write(flanterm_get_ctx(), "[KERNEL][WARN] task_sleep() is currently broken. \n", 50);
+    flanterm_write(flanterm_get_ctx(), "\033[0m", 5);
+    task->state = SLEEPING;
+    task->wake_time = uptime() + sleep;
+    yield();
 }
 
 // initialise_multitasking: Set up the initial (boot) task and one additional task.

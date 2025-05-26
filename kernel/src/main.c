@@ -247,7 +247,7 @@ void kmain(void) {
 /* get shit setup */
     idt_init();
     //irq_unmask_all();
-    
+
     irq_remap();
     //timer_handler();
     enable_apic();

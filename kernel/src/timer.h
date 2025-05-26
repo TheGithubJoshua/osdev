@@ -1,4 +1,5 @@
 #include <stdint.h>
+#include <stddef.h>
 
 extern volatile bool preempt_pending;
 
@@ -9,3 +10,4 @@ void play_sound(uint32_t freq);
 void nosound();
 void beep();
 void apic_start_timer();
+size_t uptime();
