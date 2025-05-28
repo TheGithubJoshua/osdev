@@ -11,4 +11,5 @@ void init_flanterm();
 void draw_image(uint32_t *img, int img_w, int img_h, int x, int y);
 struct flanterm_context *flanterm_get_ctx();
 void uint16_to_hex(uint16_t val, char *out);
+void uint64_to_hex(uint16_t val, char *out);
 

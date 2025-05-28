@@ -5,3 +5,6 @@
 *.iso
 *.hdd
 serial.log
+nvme_disk.img
+disk.img
+vmwareout.txt

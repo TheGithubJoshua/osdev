@@ -36,6 +36,10 @@ run-monitor: $(IMAGE_NAME).iso
 		-M q35 \
 		-cdrom $(IMAGE_NAME).iso \
 		-audiodev pa,id=speaker -machine pcspk-audiodev=speaker \
+		-drive file=nvme_disk.img,if=none,id=nvm \
+		-device nvme,serial=deadbeef,drive=nvm \
+		-drive id=disk,file=disk.img,if=none,format=raw \
+		-device ahci,id=ahci \
 		-boot d \
 		-serial stdio \
 		$(QEMUFLAGS)
@@ -58,6 +62,10 @@ run-uefi: ovmf/ovmf-code-x86_64.fd $(IMAGE_NAME).iso
 		-drive if=pflash,unit=0,format=raw,file=ovmf/ovmf-code-x86_64.fd,readonly=on \
 		-cdrom $(IMAGE_NAME).iso \
 		-audiodev pa,id=speaker -machine pcspk-audiodev=speaker \
+		-drive file=nvme_disk.img,if=none,id=nvm \
+		-device nvme,serial=deadbeef,drive=nvm \
+		-drive id=disk,file=disk.img,if=none,format=raw \
+		-device ahci,id=ahci \
 		-boot d \
 		-serial stdio \
 		$(QEMUFLAGS)
@@ -84,6 +92,8 @@ debug-uefi: ovmf/ovmf-code-x86_64.fd $(IMAGE_NAME).iso
 		-boot d \
 		-gdb tcp::1234 \
 		-serial stdio \
+		-drive file=nvme_disk.img,if=none,id=nvm \
+		-device nvme,serial=deadbeef,drive=nvm \
 		$(QEMUFLAGS)
 
 .PHONY: run-hdd

@@ -14,6 +14,7 @@
 #include "util/fb.h"
 #include "memory.h"
 #include "thread/thread.h"
+#include "drivers/nvme/nvme.h"
 #include "cpu/msr.h"
 //#include "liballoc/liballoc.h"
 #include "flanterm/backends/fb.h"
@@ -302,7 +303,6 @@ uint8_t apic_id = 0; // CPU's LAPIC ID
 ioapic_remap_all(ioapic_base, apic_id);
 ioapic_unmask_all(ioapic_base);
 initialise_multitasking();
-
 // We're done, just hang...
     hcf();
 }

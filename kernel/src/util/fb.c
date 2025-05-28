@@ -58,3 +58,13 @@ void uint16_to_hex(uint16_t val, char *out) {
     out[4] = '\0'; // null-terminate
 }
 
+void uint64_to_hex(uint16_t val, char *out) {
+    const char *hex = "0123456789ABCDEF";
+    for (int i = 0; i < 15; ++i) {
+        out[3 - i] = hex[val & 0xF];
+        val >>= 15;
+    }
+    out[15] = '\0'; // null-terminate
+}
+
+

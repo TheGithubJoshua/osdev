@@ -3,7 +3,29 @@
 #include <stdint.h>
 #include <stdbool.h>
 #include "iodebug.h"
+#include "mm/pmm.h"
 #include "memory.h"
+
+#define PAGE_PRESENT 0x1
+#define PAGE_WRITABLE 0x2
+#define PAGE_USER 0x4
+#define PAGE_WRITE_THROUGH 0x8
+#define PAGE_CACHE_DISABLE 0x10
+#define PAGE_ACCESSED 0x20
+#define PAGE_DIRTY 0x40
+#define PAGE_HUGE 0x80
+#define PAGE_GLOBAL 0x100
+#define PAGE_NO_EXECUTE (1ULL << 63)
+
+//#define PAGE_SIZE 4096
+
+// Extract indices from virtual address
+#define PML4_INDEX(va) (((va) >> 39) & 0x1FF)
+#define PDPT_INDEX(va) (((va) >> 30) & 0x1FF)
+#define PD_INDEX(va)   (((va) >> 21) & 0x1FF)
+#define PT_INDEX(va)   (((va) >> 12) & 0x1FF)
+
+#define virt_to_phys(x) ((uint64_t)(x) - get_phys_offset())
 
 // HHDM (Higher-Half Direct Map) request
 __attribute__((used, section(".limine_requests")))
@@ -141,3 +163,140 @@ strncpy (s1, s2, n)
 
   return s;
 }
+
+// Assume physical memory identity mapped for page tables access.
+typedef uint64_t pt_entry_t;
+
+static pt_entry_t *get_pml4_table(uint64_t pml4_phys) {
+    return (pt_entry_t *)pml4_phys;
+}
+
+// Allocates one 4KB page for a new page table
+
+void map_page(uint64_t pml4_phys, uint64_t virtual_addr,
+              uint64_t physical_addr, uint64_t flags)
+{
+    serial_puts("map_page called\n");
+
+    // Convert CR3->PML4 physical into a kernel-virtual pointer
+    pt_entry_t *pml4 = get_pml4_table(pml4_phys);
+    serial_puts("PML4 phys: ");
+    serial_puthex(pml4_phys);
+    serial_puts("\nVirtual addr: ");
+    serial_puthex(virtual_addr);
+    serial_puts("\nPhysical addr: ");
+    serial_puthex(physical_addr);
+    serial_puts("\nFlags: ");
+    serial_puthex(flags);
+    serial_puts("\n");
+
+    // ——— Walk PML4 → PDPT ———
+    pt_entry_t *pdpt;
+    if (!(pml4[PML4_INDEX(virtual_addr)] & PAGE_PRESENT)) {
+        serial_puts("Allocating PDPT\n");
+        pdpt = palloc(1, true);
+        memset(pdpt, 0, 512 * sizeof(pt_entry_t));
+
+        uint64_t pdpt_phys = ((uint64_t)pdpt - get_phys_offset()) & ~0xFFFULL;
+        serial_puts("PDPT phys: ");
+        serial_puthex(pdpt_phys);
+        serial_puts("\n");
+
+        pml4[PML4_INDEX(virtual_addr)] =
+            pdpt_phys | PAGE_PRESENT | PAGE_WRITABLE;
+    } else {
+        uint64_t pdpt_phys = pml4[PML4_INDEX(virtual_addr)] & ~0xFFFULL;
+        serial_puts("Using existing PDPT phys: ");
+        serial_puthex(pdpt_phys);
+        serial_puts("\n");
+        pdpt = (pt_entry_t *)(pdpt_phys + get_phys_offset());
+    }
+
+    // ——— Walk PDPT → PD ———
+    pt_entry_t *pd;
+    if (!(pdpt[PDPT_INDEX(virtual_addr)] & PAGE_PRESENT)) {
+        serial_puts("Allocating PD\n");
+        pd = palloc(1, true);
+        memset(pd, 0, 512 * sizeof(pt_entry_t));
+
+        uint64_t pd_phys = ((uint64_t)pd - get_phys_offset()) & ~0xFFFULL;
+        serial_puts("PD phys: ");
+        serial_puthex(pd_phys);
+        serial_puts("\n");
+
+        pdpt[PDPT_INDEX(virtual_addr)] =
+            pd_phys | PAGE_PRESENT | PAGE_WRITABLE;
+    } else {
+        uint64_t pd_phys = pdpt[PDPT_INDEX(virtual_addr)] & ~0xFFFULL;
+        serial_puts("Using existing PD phys: ");
+        serial_puthex(pd_phys);
+        serial_puts("\n");
+        pd = (pt_entry_t *)(pd_phys + get_phys_offset());
+    }
+
+    // ——— Walk PD → PT ———
+    pt_entry_t *pt;
+    if (!(pd[PD_INDEX(virtual_addr)] & PAGE_PRESENT)) {
+        serial_puts("Allocating PT\n");
+        pt = palloc(1, true);
+        memset(pt, 0, 512 * sizeof(pt_entry_t));
+
+        uint64_t pt_phys = ((uint64_t)pt - get_phys_offset()) & ~0xFFFULL;
+        serial_puts("PT phys: ");
+        serial_puthex(pt_phys);
+        serial_puts("\n");
+
+        pd[PD_INDEX(virtual_addr)] =
+            pt_phys | PAGE_PRESENT | PAGE_WRITABLE;
+    } else {
+        uint64_t pt_phys = pd[PD_INDEX(virtual_addr)] & ~0xFFFULL;
+        serial_puts("Using existing PT phys: ");
+        serial_puthex(pt_phys);
+        serial_puts("\n");
+        pt = (pt_entry_t *)(pt_phys + get_phys_offset());
+    }
+
+    // ——— Finally map the 4 KiB page ———
+    serial_puts("Setting PT entry:\n");
+    serial_puts("Physical addr: ");
+    serial_puthex(physical_addr & ~0xFFFULL);
+    serial_puts("\nFlags: ");
+    serial_puthex(flags | PAGE_PRESENT);
+    serial_puts("\n");
+
+    pt[PT_INDEX(virtual_addr)] =
+        (physical_addr & ~0xFFFULL) | flags | PAGE_PRESENT;
+
+    // Invalidate TLB entry for the page
+    serial_puts("Invalidating TLB for VA: ");
+    serial_puthex(virtual_addr);
+    serial_puts("\n");
+    __asm__ volatile("invlpg (%0)" :: "r"(virtual_addr) : "memory");
+}
+
+
+static inline uint64_t read_cr3(void) {
+    uint64_t cr3;
+    __asm__ volatile ("mov %%cr3, %0" : "=r" (cr3));
+    return cr3;
+}
+
+void map_nvme_mmio(uint64_t virtual_addr, uint64_t physical_addr) {
+    uint64_t cr3 = read_cr3() + get_phys_offset(); // get current PML4 physical address
+
+    // Flags: writable, no cache (cache disable)
+    uint64_t flags = PAGE_WRITABLE | PAGE_CACHE_DISABLE;
+
+    map_page(cr3, virtual_addr, physical_addr, flags);
+
+    // Reload CR3 to flush full TLB if you want:
+    // write_cr3(cr3);
+}
+
+void map_size(uint64_t phys_addr, uint64_t virt_addr, uint64_t size) {
+    // Loop over each page in size
+    for (uint64_t offset = 0; offset < size; offset += PAGE_SIZE) {
+        map_nvme_mmio(phys_addr + offset, virt_addr + offset);
+    }
+}
+
