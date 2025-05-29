@@ -33,3 +33,6 @@ void irq_remap();
 void irq_handler(cpu_status_t* cpu_status_t);
 void init_pit(uint32_t frequency);
 extern void switch_from_irq(cpu_status_t *cpu);
+typedef void (*irq_handler_t)(void);
+void register_irq_handler(uint8_t irq, irq_handler_t handler);
+void sata_irq_handler();

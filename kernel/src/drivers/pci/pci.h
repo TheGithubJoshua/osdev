@@ -1,4 +1,5 @@
 #include <stdint.h>
+#include "../../drivers/ahci/ahci.h"
 
 extern uint64_t nvme_base_addr;
 
@@ -13,3 +14,5 @@ void add_pci_device(pci_device_t *pdev);
 void pci_probe();
 void pci_init();
 uint32_t pci_read_dword(uint16_t bus, uint16_t slot, uint16_t func, uint16_t offset);
+
+HBA_MEM* get_ahci_base_address();

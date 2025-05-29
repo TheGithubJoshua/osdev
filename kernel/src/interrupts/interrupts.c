@@ -5,6 +5,8 @@
 #include "../drivers/keyboard.h"
 #include "../iodebug.h"
 #include "interrupts.h"
+#include "../drivers/pci/pci.h"
+//#include "../drivers/ahci/ahci.h"
 #include "../thread/thread.h"
 #include "apic.h"
 
@@ -176,9 +178,20 @@ void irq_remap() {
     outb(0x21, 0x0);
     outb(0xA1, 0x0);
 }
+irq_handler_t irq_handlers[16] = {0};
 
+void register_irq_handler(uint8_t irq, irq_handler_t handler) {
+    if (irq < 16) {
+        irq_handlers[irq] = handler;
+    }
+}
 void irq_handler(cpu_status_t* cpu_status_t) {
     uint64_t vector = cpu_status_t->vector_number;
+    uint64_t irq = vector - 32;
+    if (irq_handlers[irq]) {
+        irq_handlers[irq]();
+    }
+
     switch (vector) {
     case 32:
         //serial_puts("IRQ 0!");
@@ -252,6 +265,32 @@ void irq_handler(cpu_status_t* cpu_status_t) {
     outb(0x20, 0x20); // send EOI to master PIC
     apic_write(0xB0, 0);
 
+}
+
+void sata_irq_handler() {
+    serial_puts("AHCI interrupt fired!\n");
+
+    // Assuming you have a pointer to your HBA memory (e.g., abar)
+    HBA_MEM *abar = get_ahci_base_address();
+
+    // Read interrupt status register
+    uint32_t is = abar->is;
+
+    // Clear global interrupt status bits by writing back the bits you read
+    abar->is = is;
+
+    // For each port, check if it has an interrupt pending and clear it
+    for (int i = 0; i < abar->cap & 0x1F; i++) {  // number of ports
+        if (is & (1 << i)) {
+            HBA_PORT *port = &abar->ports[i];
+            uint32_t pis = port->is;
+            port->is = pis;  // clear port interrupt status bits
+        }
+    }
+
+    // You may also want to signal your main read/write code that
+    // command completed (e.g., by clearing port->ci or setting a flag).
+    
 }
 
 void idt_set_descriptor(uint8_t vector, void* isr, uint8_t flags);

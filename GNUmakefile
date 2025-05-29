@@ -64,8 +64,7 @@ run-uefi: ovmf/ovmf-code-x86_64.fd $(IMAGE_NAME).iso
 		-audiodev pa,id=speaker -machine pcspk-audiodev=speaker \
 		-drive file=nvme_disk.img,if=none,id=nvm \
 		-device nvme,serial=deadbeef,drive=nvm \
-		-drive id=disk,file=disk.img,if=none,format=raw \
-		-device ahci,id=ahci \
+		-hda disk.img \
 		-boot d \
 		-serial stdio \
 		$(QEMUFLAGS)

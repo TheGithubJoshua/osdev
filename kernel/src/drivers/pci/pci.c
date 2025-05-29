@@ -3,8 +3,9 @@
 #include "../../util/fb.h"
 #include "../../mm/pmm.h"
 #include "../../memory.h"
-#include "../../drivers/ahci/ahci.h"
 #include "../../thread/thread.h"
+#include "../../interrupts/interrupts.h"
+#include <lai/core.h>
 #include "../nvme/nvme.h"
 #include <stdbool.h>
 
@@ -85,6 +86,9 @@ void add_pci_device(pci_device_t *pdev) {
 	return;
 }
 
+uint32_t bar_low;
+uint32_t bar_high;
+
 void pci_probe() {
     for (uint32_t bus = 0; bus < 256; bus++) {
         for (uint32_t slot = 0; slot < 32; slot++) {
@@ -113,21 +117,27 @@ void pci_probe() {
                     // but i wont.
                     map_nvme_mmio(0x0000000081086028,0x0000000081086028);
                     map_nvme_mmio(0x00000000FC011028,0x00000000FC011028);
-                    uint64_t base = 0x0000000000400000; // BAR address
+                    /*uint64_t base = 0x0000000000400000; // BAR address
                     uint64_t size = 0x00010000;         // 64KB (for example)
 
                     for (uint64_t offset = 0; offset < size; offset += 0x1000) {
                         map_nvme_mmio(base + offset, base + offset);
                     }
-                      
+                      */
                     // fix this mess
-                    uint32_t bar_low = pci_read_dword(bus, slot, function, 0x24);
-                    uint32_t bar_high = pci_read_dword(bus, slot, function, 0x28);;
+                    bar_low = pci_read_dword(bus, slot, function, 0x24);
+                    bar_high = pci_read_dword(bus, slot, function, 0x28);;
                     //uint64_t bar_addr = ((uint64_t)bar_high << 32) | (bar_low & ~0xFULL);
                     //map_size(bar_addr, bar_addr, 999999);
                     map_nvme_mmio(bar_high,bar_high);
                     map_nvme_mmio(bar_low,bar_low);
-                    
+                    // get irq line
+                    uint8_t irq_line = laihost_pci_readb(69, bus, slot, function, 0x3C);
+                    register_irq_handler(irq_line, sata_irq_handler);
+                    serial_puts("irq_line: ");
+                    serial_puthex(irq_line);
+                    serial_puts("\n");
+
                     init_ahci(((uint64_t)bar_high << 32) | (bar_low & ~0xF)); // get bar5 and pass to init_ahci
                 } else if (class_id == 0x03 && subclass_id == 0x00) {
                     device_type = "VGA Compatible Controller";
@@ -159,6 +169,12 @@ void pci_probe() {
             }
         }
     }
+}
+
+HBA_MEM* get_ahci_base_address() {
+    uintptr_t phys_addr = ((uintptr_t)bar_high << 32) | (bar_low & ~0xFULL);
+    HBA_MEM *abar = (HBA_MEM *)phys_addr;
+    return abar;
 }
 
 void pci_init() {
