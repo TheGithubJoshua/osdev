@@ -4,6 +4,7 @@
 #include "../../timer.h"
 #include "../../util/fb.h"
 #include "../../memory.h"
+#include <stdbool.h>
 #include <stdint.h>
 
 // Check device type
@@ -149,6 +150,122 @@ int find_cmdslot(HBA_PORT *port) {
 	}
 	serial_puts("Cannot find free command list entry\n");
 	return -1;
+}
+
+bool ahci_write(HBA_PORT *port, uint32_t start1, uint32_t starth, uint32_t count, uint16_t *buf) {
+	port->is = (uint32_t) -1;
+	int spin = 0;
+	int slot = find_cmdslot(port);
+	if (slot == -1)
+		return false;
+
+	HBA_CMD_HEADER *cmdheader = (HBA_CMD_HEADER*)port->clb;
+	cmdheader += slot;
+	cmdheader->cfl = sizeof(FIS_REG_H2D)/sizeof(uint32_t);
+	cmdheader->p = 1;
+	cmdheader->w = 1; // write to device
+	cmdheader->prdtl = (uint16_t)((count-1)>>4) + 1;
+
+	HBA_CMD_TBL *cmdtbl = (HBA_CMD_TBL*)(cmdheader->ctba);
+	memset(cmdtbl, 0, sizeof(HBA_CMD_TBL) + 
+		(cmdheader->prdtl-1)*sizeof(HBA_PRDT_ENTRY));
+
+	// 8k bytes per PRDT
+	for (int i = 0; i < cmdheader->prdtl - 1; i++) {
+		uintptr_t buf_virt = (uintptr_t)buf;
+		uintptr_t buf_phys = buf_virt - get_phys_offset();
+        
+        // we setup command table
+		cmdtbl->prdt_entry[i].dba = (uint32_t)(buf_phys & 0xFFFFFFFF);
+		cmdtbl->prdt_entry[i].dbau = (uint32_t)((buf_phys >> 32) & 0xFFFFFFFF);
+		cmdtbl->prdt_entry[i].dbc = 8*1024 - 1; // 8k bytes 
+		cmdtbl->prdt_entry[i].i = 1;
+
+		buf += 4*1024; // advance buffer pointer by 4k words (8KB)
+		count -= 16;
+	}
+	// last entry
+	uintptr_t buf_virt = (uintptr_t)buf;
+	uintptr_t buf_phys = buf_virt - get_phys_offset();
+
+	cmdtbl->prdt_entry[cmdheader->prdtl - 1].dba = (uint32_t)(buf_phys & 0xFFFFFFFF);
+	cmdtbl->prdt_entry[cmdheader->prdtl - 1].dbau = (uint32_t)((buf_phys >> 32) & 0xFFFFFFFF);
+	cmdtbl->prdt_entry[cmdheader->prdtl - 1].dbc = (count << 9) - 1;  // remaining bytes
+	cmdtbl->prdt_entry[cmdheader->prdtl - 1].i = 1;
+
+	FIS_REG_H2D *cmdfis = (FIS_REG_H2D*)(&cmdtbl->cfis);
+
+	cmdfis->fis_type = FIS_TYPE_REG_H2D;
+	cmdfis->c = 1; // command
+	cmdfis->command = ATA_WRITE_DMA_EXT;
+
+	cmdfis->lba0 = (uint8_t)start1;
+	cmdfis->lba1 = (uint8_t)(start1>>8);
+	cmdfis->lba2 = (uint8_t)(start1>>16);
+	cmdfis->device = 1<<6; // LBA mode
+
+	cmdfis->lba3 = (uint8_t)(start1>>24);
+	cmdfis->lba4 = (uint8_t)starth;
+	cmdfis->lba5 = (uint8_t)(starth>>8);
+
+	cmdfis->countl = count & 0xFF;
+	cmdfis->counth = (count >> 8) & 0xFF;
+
+	// The below loop waits until the port is no longer busy before issuing a new command
+	while ((port->tfd & (ATA_DEV_BUSY | ATA_DEV_DRQ)) && spin < 1000000)
+	{
+		spin++;
+	}
+	if (spin == 1000000)
+	{
+		serial_puts("Port is hung\n");
+		return false;
+	}
+
+	serial_puts("Port tfd before command: 0x");
+	serial_puthex(port->tfd);
+	serial_puts("\n");
+	serial_puts("Port ssts: 0x");
+	serial_puthex(port->ssts);
+	serial_puts("\n");
+	serial_puts("Port is: 0x");
+	serial_puthex(port->is);
+	serial_puts("\n");
+
+	serial_puts("Port ci before command: 0x");
+	serial_puthex(port->ci);
+	serial_puts("\n");
+
+	for (int i = 0; i < 10; i++) {
+	    serial_puts("Port ssts: 0x");
+	    serial_puthex(port->ssts);
+	    serial_puts("\n");
+	    //timer_wait(100);
+	}
+
+	port->ci = 1<<slot;	
+
+	// Poll for completion
+	spin = 0;
+	while (port->ci & (1 << slot)) {
+	    if (port->is & HBA_PxIS_TFES) { // Task file error
+	        serial_puts("Read disk error\n");
+	        return false;
+	    }
+	    if (++spin > 10000000) { // timeout (adjust as needed)
+	        serial_puts("AHCI read timeout\n");
+	        return false;
+	    }
+	}
+	serial_puts("past loop!");
+
+	// Check again
+	if (port->is & HBA_PxIS_TFES)
+	{
+		serial_puts("Read disk error\n");
+		return false;
+	}
+return true;
 }
 
 bool ahci_read(HBA_PORT *port, uint32_t startl, uint32_t starth, uint32_t count, uint16_t *buf) {
@@ -321,16 +438,18 @@ void init_ahci(uint32_t abar) {
 
 	//hba->ghc |= (1 << 1);   // GHC.IE (interrupt enable)
 	//hba->ghc |= (1 << 31);  // GHC.AE (AHCI enable)
+  
+	uint16_t wbuffer[256] = {0x6969};
+	bool write = ahci_write(port, 0, 0, 1, wbuffer);
+	if (write) {
+		serial_puts("write success! \n");
+		serial_puts("wbuffer: ");
+		//serial_puthex(wbuffer);
+		serial_puts("\n");
+	} else {
+		serial_puts("write failed :(");
+	}
 
-	// Start port
-	/*port->cmd &= ~HBA_PxCMD_ST;     // Stop command engine
-	timer_wait(1);                        // Wait for it to actually stop
-	port->cmd &= ~HBA_PxCMD_FRE;    // Disable FIS receive
-	timer_wait(1);
-
-	port->cmd |= HBA_PxCMD_FRE;     // Enable FIS receive engine
-	port->cmd |= HBA_PxCMD_ST;      // Start command engine
-*/
 	uint16_t buffer[256]; // Buffer to hold 512 bytes (1 sector)
 	uint8_t *byte_buf = (uint8_t *)buffer;
 	bool success = ahci_read(port, 0, 0, 1, buffer);

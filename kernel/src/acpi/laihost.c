@@ -5,6 +5,7 @@
 #include "../timer.h"
 #include "../util/fb.h"
 #include "acpi.h"
+#include <stdint.h>
 
 void laihost_log(int level, const char *msg) {
 	serial_puts("lai: ");
@@ -51,11 +52,20 @@ void laihost_free(void *ptr, size_t size) {
 }
 
 void *laihost_map(size_t address, size_t count) {
-	return (void *)(address + get_phys_offset());
+	//laihost_log(1, "laihost_map called!");
+	if ((uintptr_t)address >= 0xFFFF800000000000ULL) {
+		return (void *)(address + get_phys_offset());
+	} else {
+		for (uint64_t offset = 0; offset < count; offset += 0x1000) {
+		    map_nvme_mmio(address + offset, address + offset); // no return value
+		}
+		return (void *)address; // return the virtual address (assumes identity map)
+	}
 }
 
 void laihost_unmap(void *address, size_t count) {
 	// wow such empty
+	//laihost_log(1, "laihost_unmap called!");
 }
 
 void *laihost_scan(const char *sig, size_t count) {
@@ -106,5 +116,16 @@ void laihost_pci_writed(uint16_t seg, uint8_t bus, uint8_t dev, uint8_t fun, uin
 }
 
 void laihost_sleep(uint64_t ms) { timer_wait(ms * 10); }
+
+uint64_t pit_value() {
+	outb(0x43, 0x00);
+	uint8_t lo = inb(0x40);
+	uint8_t hi = inb(0x40);
+	return ((uint16_t)hi << 8) | lo;
+}
+
+uint64_t laihost_timer(void) {
+    return get_ticks() * 100000;
+}
 
 

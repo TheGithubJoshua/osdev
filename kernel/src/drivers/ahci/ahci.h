@@ -34,6 +34,8 @@
 #define HBA_PxCMD_SUD  (1 << 1)  // Spin Up Device
 #define HBA_PxCMD_POD  (1 << 2)  // Power On Device
 
+#define ATA_WRITE_DMA_EXT 0x35
+
 typedef enum {
 	FIS_TYPE_REG_H2D	= 0x27,	// Register FIS - host to device
 	FIS_TYPE_REG_D2H	= 0x34,	// Register FIS - device to host

@@ -50,6 +50,10 @@ debug: $(IMAGE_NAME).iso
 		-M q35 \
 		-cdrom $(IMAGE_NAME).iso \
 		-audiodev pa,id=speaker -machine pcspk-audiodev=speaker \
+		-drive file=nvme_disk.img,if=none,id=nvm \
+		-device nvme,serial=deadbeef,drive=nvm \
+		-drive id=disk,file=disk.img,if=none,format=raw \
+		-device ahci,id=ahci \
 		-boot d \
 		-serial stdio \
 		-gdb tcp::1234 \
@@ -93,6 +97,7 @@ debug-uefi: ovmf/ovmf-code-x86_64.fd $(IMAGE_NAME).iso
 		-serial stdio \
 		-drive file=nvme_disk.img,if=none,id=nvm \
 		-device nvme,serial=deadbeef,drive=nvm \
+		-hda disk.img \
 		$(QEMUFLAGS)
 
 .PHONY: run-hdd

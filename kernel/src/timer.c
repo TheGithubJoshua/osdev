@@ -2,6 +2,7 @@
 #include "interrupts/apic.h"
 #include "timer.h"
 #include "thread/thread.h"
+#include <stdint.h>
 
 volatile int timer_ticks = 0;
 volatile bool preempt_pending;
@@ -43,6 +44,10 @@ size_t uptime() {
     size_t ticks = timer_ticks;
     size_t ms = ticks * 10; // Assuming timer_ticks increments every 10ms
     return ms;
+}
+
+uint64_t get_ticks() {
+    return timer_ticks;
 }
 
 // play sounnd with PC speaker
