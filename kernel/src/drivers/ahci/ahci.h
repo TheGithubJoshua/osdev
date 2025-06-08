@@ -1,6 +1,7 @@
 #pragma once
 
 #include <stdint.h>
+#include <stdbool.h>
 
 #define ATA_CMD_IDENTIFY 0xEC
 #define AHCI_BASE 0x400000
@@ -324,4 +325,13 @@ typedef struct tagHBA_CMD_TBL {
 	HBA_PRDT_ENTRY	prdt_entry[1];	// Physical region descriptor table entries, 0 ~ 65535
 } HBA_CMD_TBL;
 
+typedef struct sata_info {
+	uint32_t total_sectors;
+	uint64_t capacity_bytes;
+	uint64_t capacity_gb;
+} SATA_INFO;
+
 void init_ahci(uint32_t abar);
+bool ahci_read(HBA_PORT *port, uint32_t startl, uint32_t starth, uint32_t count, uint16_t *buf);
+bool ahci_readblock(uint64_t lba, unsigned char *buffer, unsigned int num);
+int sd_readblock(unsigned int lba, unsigned char *buffer, unsigned int num);

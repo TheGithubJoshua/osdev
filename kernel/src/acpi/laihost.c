@@ -15,6 +15,7 @@ void laihost_log(int level, const char *msg) {
 	flanterm_write(flanterm_get_ctx(), msg, 55);
 	flanterm_write(flanterm_get_ctx(), "\n", 1);
 	flanterm_write(flanterm_get_ctx(), "\033[0m", 4);
+
 }
 
 __attribute__((noreturn)) void laihost_panic(const char *msg) {

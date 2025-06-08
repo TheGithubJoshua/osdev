@@ -2,10 +2,14 @@
 #include "../../thread/thread.h"
 #include "../../iodebug.h"
 #include "../../timer.h"
+#include "../../mm/pmm.h"
+#include "../fat/fat.h"
 #include "../../util/fb.h"
 #include "../../memory.h"
-#include <stdbool.h>
 #include <stdint.h>
+
+HBA_MEM* hba;
+HBA_PORT* port;
 
 // Check device type
 static int check_type(HBA_PORT *port) {
@@ -388,6 +392,28 @@ bool ahci_read(HBA_PORT *port, uint32_t startl, uint32_t starth, uint32_t count,
 	return true;
 }
 
+bool ahci_readblock(uint64_t lba, unsigned char *buffer, unsigned int num) {
+    if (!port) {
+        // No SATA device found.
+        return false;
+    }
+    uint16_t *buf = (uint16_t *)buffer;
+
+    uint32_t startl = (uint32_t)(lba & 0xFFFFFFFF);
+    uint32_t starth = (uint32_t)(lba >> 32);
+    serial_puts("lba: ");
+   serial_puthex(lba);
+
+    bool status = ahci_read(port, startl, starth, num, buf);
+    if (!status) return false;
+    uint8_t *byte_buf = (uint8_t *)buffer;
+    for (int i = 0; i < 16; i++) {
+        serial_puthex(byte_buf[i]);
+        serial_puts(" ");
+    }
+    return true;
+}
+
 void init_ahci(uint32_t abar) {
 	// get base address and map
 	uint64_t base_addr = (abar & 0xFFFFFFF0);
@@ -412,23 +438,15 @@ void init_ahci(uint32_t abar) {
 	fis.c = 1;
 
 	HBA_MEM* hba = (HBA_MEM*)abar;
-    HBA_PORT* port;
 
 	for (int i = 0; i < 32; i++) {
 	    if (hba->pi & (1 << i)) {
 	    	if (hba->pi & (1 << i) && check_type(&hba->ports[i]) == AHCI_DEV_SATA) {
+	    		   flanterm_write(flanterm_get_ctx(), "\033[32m[AHCI] SATA device found!\033[0m", 30);
+	    		   flanterm_write(flanterm_get_ctx(), "\n", 2);
 	    	       port = &hba->ports[i];
 	    	   }
-	        //port = &hba->ports[0];
 
-	        /*(port->clb = AHCI_BASE + (i << 10);     // Command List: 1KB per port
-	        port->clbu = 0;
-	        memset((void*)port->clb, 0, 1024);
-
-	        port->fb = AHCI_BASE + 0x8000 + (i << 8);  // FIS: 256 bytes per port
-	        port->fbu = 0;
-	        memset((void*)port->fb, 0, 256);
-	        */
 	        port_rebase(port, i);
 	    }
 	}
@@ -439,7 +457,7 @@ void init_ahci(uint32_t abar) {
 	//hba->ghc |= (1 << 1);   // GHC.IE (interrupt enable)
 	//hba->ghc |= (1 << 31);  // GHC.AE (AHCI enable)
   
-	uint16_t wbuffer[256] = {0x6969};
+	/*uint16_t wbuffer[256] = {0x6969};
 	bool write = ahci_write(port, 0, 0, 1, wbuffer);
 	if (write) {
 		serial_puts("write success! \n");
@@ -457,14 +475,58 @@ void init_ahci(uint32_t abar) {
     serial_puthex((uintptr_t)buffer);
     serial_puts("\n");
 	if (success) {
-	    // Output the first few bytes to verify they are zero
+	    // Output the first few bytes
 	    for (int i = 0; i < 16; i++) {
-	        serial_puthex(byte_buf[i]);
+	        serial_puthex(byte_buf[i]);5
 	        serial_puts(" ");
 	    }
 	    serial_puts("\n");
 	} else {
 	    serial_puts("Read failed.\n");
 	}
+	*/
+	unsigned int cluster;
+	if (fat_getpartition()) {
+    // 11 bytes 8.3 name, last 3 for extension.
+    static const char fn[11] = {
+        'T','E','S','T',' ',' ',' ',' ','T','X','T'
+    };
 
+unsigned int cluster = fat_getcluster((char*)fn);
+if (cluster) {
+    // Now you can actually read the file. For example:
+    char *filedata = fat_readfile(cluster);
+    if (filedata) {
+        serial_puts("FILE (as ASCII): ");
+        /*for (size_t i = 0; i < 5; i++) {
+            serial_puthex(filedata[i]); // print each byte in hex
+            serial_puts(" ");
+        }
+        serial_puts("\n");
+        */
+
+        for (size_t i = 0; i < 3000; i++) {
+            serial_putc(filedata[i]); // print each byte in char
+            //serial_puts(" ");
+        }
+        serial_puts("\n");
+
+        pfree(filedata, (FAT_WORKBUF_SIZE + PAGE_SIZE - 1) / PAGE_SIZE);
+    } else {
+        serial_puts("ERROR reading file into memory\n");
+    }
+} else if (!cluster) {
+    serial_puts("die\n");
+} else {
+    serial_puts("FAT partition not found???\n");
+}
+
+}
+
+	    //unsigned char buf[512];
+	    //ahci_readblock(0, buf, 1);
+	    //serial_puts(buf);
+unsigned char d[512];
+serial_puts("testing readblock...\n");
+ahci_readblock(0, d, 1);
 }

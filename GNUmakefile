@@ -5,7 +5,7 @@ MAKEFLAGS += -rR
 # Default user QEMU flags. These are appended to the QEMU command calls.
 QEMUFLAGS := -m 2G
 
-override IMAGE_NAME := template
+override IMAGE_NAME := idk
 
 # Toolchain for building the 'limine' executable for the host.
 HOST_CC := cc
@@ -38,7 +38,7 @@ run-monitor: $(IMAGE_NAME).iso
 		-audiodev pa,id=speaker -machine pcspk-audiodev=speaker \
 		-drive file=nvme_disk.img,if=none,id=nvm \
 		-device nvme,serial=deadbeef,drive=nvm \
-		-drive id=disk,file=disk.img,if=none,format=raw \
+		-drive id=disk,file=disk.raw,if=none,format=raw \
 		-device ahci,id=ahci \
 		-boot d \
 		-serial stdio \
@@ -52,7 +52,7 @@ debug: $(IMAGE_NAME).iso
 		-audiodev pa,id=speaker -machine pcspk-audiodev=speaker \
 		-drive file=nvme_disk.img,if=none,id=nvm \
 		-device nvme,serial=deadbeef,drive=nvm \
-		-drive id=disk,file=disk.img,if=none,format=raw \
+		-drive id=disk,file=disk.raw,if=none,format=raw \
 		-device ahci,id=ahci \
 		-boot d \
 		-serial stdio \
