@@ -13,6 +13,7 @@
 #include "timer.h"
 #include "util/fb.h"
 #include "memory.h"
+#include "elf/elf.h"
 #include "thread/thread.h"
 #include "drivers/nvme/nvme.h"
 #include "cpu/msr.h"
@@ -302,6 +303,7 @@ uintptr_t ioapic_base = get_ioapic_addr() + get_phys_offset(); // or mapped addr
 uint8_t apic_id = 0; // CPU's LAPIC ID
 ioapic_remap_all(ioapic_base, apic_id);
 ioapic_unmask_all(ioapic_base);
+load_elf();
 initialise_multitasking();
 // We're done, just hang...
     hcf();

@@ -24,6 +24,7 @@ extern void initial_switch();
 void boot_task();
 void task_exit();
 void task_sleep(task_t* task, size_t sleep);
+void task_create_wrap(void (*entry)(void));
 
 extern volatile bool multitasking_initialized;
 

@@ -3,6 +3,7 @@
 #include "../util/fb.h"
 #include "thread.h"
 #include "../iodebug.h"
+#include "../elf/elf.h"
 #include "../drivers/ahci/ahci.h"
 #include "../drivers/pci/pci.h"
 #include "../drivers/nvme/nvme.h"
@@ -217,6 +218,11 @@ void task_sleep(task_t* task, size_t sleep) {
 
 // TODO: kill function
 
+void* taskptr;
+void task_create_wrap(void (*entry)(void)) {
+    taskptr = entry;
+}
+
 // initialise_multitasking: Set up the initial (boot) task and one additional task.
 void initialise_multitasking(void) {
     //asm volatile("cli");
@@ -238,6 +244,9 @@ void initialise_multitasking(void) {
     //create_task(task_d);
     create_task(beep_task);
     create_task(pci_init);
+    if (taskptr) {
+    create_task(taskptr);
+}
     //create_task(init_nvme);
     //create_task(init_ahci);
 

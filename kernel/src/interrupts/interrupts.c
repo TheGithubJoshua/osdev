@@ -5,6 +5,7 @@
 #include "../drivers/keyboard.h"
 #include "../iodebug.h"
 #include "interrupts.h"
+#include "../memory.h"
 #include "../drivers/pci/pci.h"
 //#include "../drivers/ahci/ahci.h"
 #include "../thread/thread.h"
@@ -120,7 +121,8 @@ void exception_handler(cpu_status_t* cpu_status_t) {
         uintptr_t val;
         asm volatile ("mov %%cr2, %0" : "=r"(val));
         serial_puthex(val);
-        asm volatile ("cli; hlt");
+        map_nvme_mmio(val, val);
+        //asm volatile ("cli; hlt");
         break;
     case 15:
         serial_puts("reserved");

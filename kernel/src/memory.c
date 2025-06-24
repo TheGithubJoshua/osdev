@@ -6,27 +6,6 @@
 #include "mm/pmm.h"
 #include "memory.h"
 
-#define PAGE_PRESENT 0x1
-#define PAGE_WRITABLE 0x2
-#define PAGE_USER 0x4
-#define PAGE_WRITE_THROUGH 0x8
-#define PAGE_CACHE_DISABLE 0x10
-#define PAGE_ACCESSED 0x20
-#define PAGE_DIRTY 0x40
-#define PAGE_HUGE 0x80
-#define PAGE_GLOBAL 0x100
-#define PAGE_NO_EXECUTE (1ULL << 63)
-
-//#define PAGE_SIZE 4096
-
-// Extract indices from virtual address
-#define PML4_INDEX(va) (((va) >> 39) & 0x1FF)
-#define PDPT_INDEX(va) (((va) >> 30) & 0x1FF)
-#define PD_INDEX(va)   (((va) >> 21) & 0x1FF)
-#define PT_INDEX(va)   (((va) >> 12) & 0x1FF)
-
-#define virt_to_phys(x) ((uint64_t)(x) - get_phys_offset())
-
 // HHDM (Higher-Half Direct Map) request
 __attribute__((used, section(".limine_requests")))
 static volatile struct limine_hhdm_request hhdm_request = {
@@ -240,7 +219,7 @@ void map_page(uint64_t pml4_phys, uint64_t virtual_addr,
 }
 
 
-static inline uint64_t read_cr3(void) {
+uint64_t read_cr3(void) {
     uint64_t cr3;
     __asm__ volatile ("mov %%cr3, %0" : "=r" (cr3));
     return cr3;
