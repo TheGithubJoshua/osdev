@@ -287,6 +287,10 @@ asm("int $0");
 serial_puts("hello \n");
 flanterm_write(ft_ctx, "Welcome!\n", 10);
 
+flanterm_write(flanterm_get_ctx(), "\033[33m", 5);
+flanterm_write(flanterm_get_ctx(), "[INFO] Press [F1] for ACPI sleep state S5 (Shutdown)\n", 56);
+flanterm_write(flanterm_get_ctx(), "[INFO] Press [F2] for current date and time info from RTC\n", 62);
+
 //log_acpi_namespace();
 test_palloc();
 //test_pci_readb();

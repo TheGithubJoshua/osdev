@@ -1,8 +1,10 @@
 #include "iodebug.h"
 #include <limine.h>
 #include <lai/helpers/pm.h>
+#include <stdarg.h>
 #include "../util/fb.h"
 #include "timer.h"
+#include "cmos/rtc.h"
 #include "flanterm/flanterm.h"
 #include "flanterm/backends/fb.h"
 #include "font.c"
@@ -149,6 +151,113 @@ void keyboard_handler() {
           flanterm_write(ft_ctx, "System is going down!", 22);
           //timer_wait(50);
           lai_enter_sleep(5);
+        case 0x3C:
+          rtc_t rtc = read_rtc();
+
+          // Format HR:MIN:SEC-DD-MM-YYYY
+          // Format each component as two-digit strings with leading zeros if necessary
+          char hr_str[3];
+          if (rtc.hour < 10) {
+              hr_str[0] = '0';
+          } else {
+              hr_str[0] = rtc.hour / 10 + '0';
+          }
+          hr_str[1] = rtc.hour % 10 + '0';
+          hr_str[2] = '\0';
+
+          char min_str[3];
+          if (rtc.minute < 10) {
+              min_str[0] = '0';
+          } else {
+              min_str[0] = rtc.minute / 10 + '0';
+          }
+          min_str[1] = rtc.minute % 10 + '0';
+          min_str[2] = '\0';
+
+          char sec_str[3];
+          if (rtc.second < 10) {
+              sec_str[0] = '0';
+          } else {
+              sec_str[0] = rtc.second / 10 + '0';
+          }
+          sec_str[1] = rtc.second % 10 + '0';
+          sec_str[2] = '\0';
+
+          char day_str[3];
+          if (rtc.day < 10) {
+              day_str[0] = '0';
+          } else {
+              day_str[0] = rtc.day / 10 + '0';
+          }
+          day_str[1] = rtc.day % 10 + '0';
+          day_str[2] = '\0';
+
+          char month_str[3];
+          if (rtc.month < 10) {
+              month_str[0] = '0';
+          } else {
+              month_str[0] = rtc.month / 10 + '0';
+          }
+          month_str[1] = rtc.month % 10 + '0';
+          month_str[2] = '\0';
+
+          // Calculate the full year
+          int full_year = (rtc.century * 100) + rtc.year;
+          char year_str[5];
+          year_str[0] = (full_year / 1000) + '0';
+          year_str[1] = (full_year % 1000 / 100) + '0';
+          year_str[2] = (full_year % 100 / 10) + '0';
+          year_str[3] = full_year % 10 + '0';
+          year_str[4] = '\0';
+
+          // Manually construct the time string
+          char time_str[20];
+          int index = 0;
+
+          // Add hours and colon
+          time_str[index++] = hr_str[0];
+          time_str[index++] = hr_str[1];
+          time_str[index++] = ':';
+          index += 1; // Increment after adding each character
+
+          // Add minutes and colon
+          time_str[index++] = min_str[0];
+          time_str[index++] = min_str[1];
+          time_str[index++] = ':';
+          index += 1;
+
+          // Add seconds and hyphen
+          time_str[index++] = sec_str[0];
+          time_str[index++] = sec_str[1];
+          time_str[index++] = ' ';
+          index += 1;
+
+          // Add day and hyphen
+          time_str[index++] = day_str[0];
+          time_str[index++] = day_str[1];
+          time_str[index++] = '-';
+          index += 1;
+
+          // Add month and hyphen
+          time_str[index++] = month_str[0];
+          time_str[index++] = month_str[1];
+          time_str[index++] = '-';
+          index += 1;
+
+          // Add year
+          time_str[index++] = year_str[0];
+          time_str[index++] = year_str[1];
+          time_str[index++] = year_str[2];
+          time_str[index++] = year_str[3];
+
+          // Ensure null termination
+          time_str[index] = '\0';
+
+          flanterm_write(ft_ctx, "[RTC] The current date and time is: ", 39);
+          flanterm_write(ft_ctx, time_str, 24);
+          flanterm_write(ft_ctx, "\n", 2);
+          
+          serial_puts("\n");
         }
     }
 }
