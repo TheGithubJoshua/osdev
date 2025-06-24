@@ -18,3 +18,21 @@ void get_msr(uint32_t msr, uint32_t *lo, uint32_t *hi) {
 void set_msr(uint32_t msr, uint32_t lo, uint32_t hi) {
 	asm volatile("wrmsr" : : "a"(lo), "d"(hi), "c"(msr));
 }
+
+const char* get_model(void) {
+    unsigned int eax, ebx, ecx, edx;
+    static char vendor[13]; // Static to persist after function returns
+
+    __asm__ volatile (
+        "cpuid"
+        : "=b" (ebx), "=d" (edx), "=c" (ecx)
+        : "a" (0)
+    );
+
+    *(unsigned int*)&vendor[0] = ebx;
+    *(unsigned int*)&vendor[4] = edx;
+    *(unsigned int*)&vendor[8] = ecx;
+    vendor[12] = '\0';
+
+    return vendor;
+}
