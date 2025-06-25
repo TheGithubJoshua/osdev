@@ -36,3 +36,15 @@ const char* get_model(void) {
 
     return vendor;
 }
+
+bool is_running_under_hypervisor(void) {
+    unsigned int eax, ebx, ecx, edx;
+
+    if (__get_cpuid(1, &eax, &ebx, &ecx, &edx)) {
+        // Bit 31 of ECX set indicates hypervisor present
+        return (ecx & CPUID_FEAT_ECX_HYPERVISOR) != 0;
+    }
+
+    // CPUID not supported or failed
+    return false;
+}

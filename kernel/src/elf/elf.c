@@ -3,9 +3,29 @@
 #include "memory.h"
 #include "../thread/thread.h"
 #include "../mm/pmm.h"
+#include "../drivers/fat/fat.h"
 #include <limine.h>
 #include <stddef.h>
 #include <stdbool.h>
+
+static struct limine_internal_module internal_module = {
+    .path = "module",
+    //.cmdline = NULL,
+};
+
+// Array of pointers to internal_module
+static struct limine_internal_module *internal_modules[] = {
+    &internal_module,
+};
+
+__attribute__((used, section(".limine_requests")))
+static volatile struct limine_module_request module_request = {
+    .id = LIMINE_MODULE_REQUEST,
+    .revision = 0,
+
+    .internal_module_count = 1,
+    .internal_modules = internal_modules,
+};
 
 static inline int strcmp(const char *s1, const char *s2) {
     while (*s1 && (*s1 == *s2)) {
@@ -184,25 +204,6 @@ static int elf_load_stage1(Elf64_Ehdr *hdr) {
 	return 0;
 }
 
-static struct limine_internal_module internal_module = {
-    .path = "module",
-    //.cmdline = NULL,
-};
-
-// Array of pointers to internal_module
-static struct limine_internal_module *internal_modules[] = {
-    &internal_module,
-};
-
-__attribute__((used, section(".limine_requests")))
-static volatile struct limine_module_request module_request = {
-    .id = LIMINE_MODULE_REQUEST,
-    .revision = 0,
-
-    .internal_module_count = 1,
-    .internal_modules = internal_modules,
-};
-
 static inline Elf64_Phdr *elf_program_header(Elf64_Ehdr *hdr, int idx) {
     return (Elf64_Phdr *)((uint8_t *)hdr + hdr->e_phoff) + idx;
 }
@@ -344,14 +345,9 @@ void load_segment_to_memory(uint64_t pml4_phys, Elf64_Phdr *phdr, uint64_t segme
     }
 }
 
-
-void load_elf() {
+// takes the address of an ELF file in memory and executes it
+void load_elf(void *file) {
 uint64_t pml4_phys_addr = read_cr3();
-uint64_t module_count = module_request.response->module_count;
-serial_puts("\nmodule count: ");
-serial_puthex(module_count);
-
-void *file = module_request.response->modules[0]->address;
 
 Elf64_Ehdr *ehdr = file;
 map_nvme_mmio(ehdr->e_entry, ehdr->e_entry);
@@ -368,8 +364,8 @@ if (result) { serial_puts("file loaded!"); } else { serial_puts("loading failed!
 //void *entry = elf_load_file(ehdr);
 
 typedef void (*entry_t)(void);
-uintptr_t entry_offset = /*ehdr->e_entry*/1000;  // ELF entry point relative to load base
-uintptr_t base = (uintptr_t)module_request.response->modules[0]->address;
+uintptr_t entry_offset = /*ehdr->e_entry*/1000;  // ELF entry point relative to load base // fix me
+uintptr_t base = (uintptr_t)file;
 serial_puts("\nbase: ");
 serial_puthex(base);
 serial_puts("\nentry_offset: ");
@@ -460,4 +456,24 @@ if (entry != NULL) {
     serial_puts("Failed to load ELF.\n");
 }
 //task_exit();
+}
+
+void load_elf_from_disk(const char fn[11]) {
+if (fat_getpartition()) {
+unsigned int cluster = fat_getcluster((char*)fn);
+if (cluster) {
+    // Now you can actually read the file. For example:
+    char *filedata = fat_readfile(cluster);
+    if (filedata) { load_elf(filedata); }
+} else {
+    serial_puts("loading ELF from disk failed due to FAT error!");
+}
+}
+task_exit();
+}
+
+// demo of loading elf from disk
+void load_module_from_disk() {
+	static const char fn[11] = { 'M','O','D','U','L','E',' ',' ',' ',' ',' ' };
+	load_elf_from_disk(fn);
 }

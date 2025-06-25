@@ -15,6 +15,7 @@
 #include "memory.h"
 #include "elf/elf.h"
 #include "thread/thread.h"
+#include "drivers/fat/fat.h"
 #include "drivers/nvme/nvme.h"
 #include "cpu/msr.h"
 //#include "liballoc/liballoc.h"
@@ -292,6 +293,14 @@ flanterm_write(flanterm_get_ctx(), "[INFO] CPU is ", 14);
 flanterm_write(flanterm_get_ctx(), get_model(), 12);
 flanterm_write(flanterm_get_ctx(), "!\n", 3);
 
+bool hypervisor = is_running_under_hypervisor();
+if (hypervisor) {
+    flanterm_write(ft_ctx, "[INFO] System is running under a hypervisor!\n", 46);
+} else {
+    flanterm_write(ft_ctx, "[INFO] System is not running under a hypervisor.\n", 50);
+}
+
+
 flanterm_write(flanterm_get_ctx(), "\033[33m", 5);
 flanterm_write(flanterm_get_ctx(), "[INFO] Press [F1] for ACPI sleep state S5 (Shutdown)\n", 56);
 flanterm_write(flanterm_get_ctx(), "[INFO] Press [F2] for current date and time info from RTC\n", 62);
@@ -312,7 +321,7 @@ uintptr_t ioapic_base = get_ioapic_addr() + get_phys_offset(); // or mapped addr
 uint8_t apic_id = 0; // CPU's LAPIC ID
 ioapic_remap_all(ioapic_base, apic_id);
 ioapic_unmask_all(ioapic_base);
-load_elf();
+
 initialise_multitasking();
 // We're done, just hang...
     hcf();

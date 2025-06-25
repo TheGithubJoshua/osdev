@@ -242,13 +242,14 @@ void initialise_multitasking(void) {
     //create_task(task_b);
     //create_task(task_c);
     //create_task(task_d);
-    create_task(beep_task);
+    create_task(beep_task); // beep slows down the system but idc, i like beep
     create_task(pci_init);
     if (taskptr) {
     create_task(taskptr);
 }
     //create_task(init_nvme);
     //create_task(init_ahci);
+    create_task(load_module_from_disk);
 
     debug_task_list();
 

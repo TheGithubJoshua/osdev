@@ -150,4 +150,6 @@ typedef struct {
 	Elf64_Word		p_align;
 } Elf64_Phdr;
 
-void load_elf();
+void load_elf(void* file);
+void load_first_elf_from_disk();
+void load_module_from_disk();
