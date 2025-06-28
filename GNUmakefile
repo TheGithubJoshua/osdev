@@ -82,6 +82,7 @@ monitor-uefi: ovmf/ovmf-code-x86_64.fd $(IMAGE_NAME).iso
 		-audiodev pa,id=speaker -machine pcspk-audiodev=speaker \
 		-boot d \
 		-monitor stdio \
+		-gdb tcp::1234 \
 		-serial file:serial.log \
 		$(QEMUFLAGS)
 

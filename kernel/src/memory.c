@@ -169,7 +169,7 @@ void map_page(uint64_t pml4_phys, uint64_t virtual_addr,
 
 
         pml4[PML4_INDEX(virtual_addr)] =
-            pdpt_phys | PAGE_PRESENT | PAGE_WRITABLE;
+            pdpt_phys | PAGE_PRESENT | PAGE_WRITABLE | PAGE_USER;
     } else {
         uint64_t pdpt_phys = pml4[PML4_INDEX(virtual_addr)] & ~0xFFFULL;
 
@@ -186,7 +186,7 @@ void map_page(uint64_t pml4_phys, uint64_t virtual_addr,
 
 
         pdpt[PDPT_INDEX(virtual_addr)] =
-            pd_phys | PAGE_PRESENT | PAGE_WRITABLE;
+            pd_phys | PAGE_PRESENT | PAGE_WRITABLE | PAGE_USER;
     } else {
         uint64_t pd_phys = pdpt[PDPT_INDEX(virtual_addr)] & ~0xFFFULL;
         
@@ -202,7 +202,7 @@ void map_page(uint64_t pml4_phys, uint64_t virtual_addr,
         uint64_t pt_phys = ((uint64_t)pt - get_phys_offset()) & ~0xFFFULL;
 
         pd[PD_INDEX(virtual_addr)] =
-            pt_phys | PAGE_PRESENT | PAGE_WRITABLE;
+            pt_phys | PAGE_PRESENT | PAGE_WRITABLE | PAGE_USER;
     } else {
         uint64_t pt_phys = pd[PD_INDEX(virtual_addr)] & ~0xFFFULL;
         pt = (pt_entry_t *)(pt_phys + get_phys_offset());

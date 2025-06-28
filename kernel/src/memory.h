@@ -11,6 +11,7 @@
 #define PAGE_HUGE 0x80
 #define PAGE_GLOBAL 0x100
 #define PAGE_NO_EXECUTE (1ULL << 63)
+#define PAGE_EXECUTE 0ULL // why not
 
 #define PAGE_WRITE_EXEC (PAGE_PRESENT | PAGE_WRITABLE)
 

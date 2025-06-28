@@ -14,7 +14,7 @@
 //extern volatile bool multitasking_initialized;
 // TODO: when returning from interrupt (fault) skip over faulting proccess after restore.
 // TODO: check if iretq just returns to start of handling interrupt.
-#define GDT_OFFSET_KERNEL_CODE 0x28
+#define GDT_OFFSET_KERNEL_CODE 0x08
 
 typedef struct {
 	uint16_t    isr_low;      // The lower 16 bits of the ISR's address
@@ -121,7 +121,9 @@ void exception_handler(cpu_status_t* cpu_status_t) {
         uintptr_t val;
         asm volatile ("mov %%cr2, %0" : "=r"(val));
         serial_puthex(val);
-        map_nvme_mmio(val, val);
+        // there will be checking of error code here
+        // (eventually)
+        map_nvme_mmio(val, val); // im lazy
         //asm volatile ("cli; hlt");
         break;
     case 15:

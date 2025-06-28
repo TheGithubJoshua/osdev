@@ -4,6 +4,7 @@
 #include "thread.h"
 #include "../iodebug.h"
 #include "../elf/elf.h"
+#include "../userspace/enter.h"
 #include "../drivers/ahci/ahci.h"
 #include "../drivers/pci/pci.h"
 #include "../drivers/nvme/nvme.h"
@@ -250,6 +251,7 @@ void initialise_multitasking(void) {
     //create_task(init_nvme);
     //create_task(init_ahci);
     create_task(load_module_from_disk);
+    create_task(enter_userspace); // enter the userland.
 
     debug_task_list();
 

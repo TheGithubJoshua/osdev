@@ -15,6 +15,7 @@
 #include "memory.h"
 #include "elf/elf.h"
 #include "thread/thread.h"
+#include "userspace/enter.h"
 #include "drivers/fat/fat.h"
 #include "drivers/nvme/nvme.h"
 #include "cpu/msr.h"
@@ -22,6 +23,9 @@
 #include "flanterm/backends/fb.h"
 #include "interrupts/apic.h"
 #include "font.c"
+
+uintptr_t kernel_stack_top;
+uint8_t kernel_stack[KERNEL_STACK_SIZE] __attribute__((aligned(16)));
 
 // Set the base revision to 3, this is recommended as this is the latest
 // base revision described by the Limine boot protocol specification.
@@ -233,6 +237,190 @@ void ioapic_remap_all(uintptr_t ioapic_base, uint8_t apic_id) {
     }
 }
 
+typedef struct gtdr {
+    uint16_t limit;
+    uint64_t base;
+} __attribute__((packed)) gdtr_t;
+
+uint64_t gdt_entries[7];
+uint64_t num_gdt_entries = 7;
+
+gdtr_t gdtr = {
+    .limit = 0,  // initialize later
+    .base = 0
+};
+
+struct tss_entry_struct tss __attribute__((aligned(16)));
+
+// Function to create a TSS entry for the GDT
+void create_tss_entry(void* tss_base, uint8_t index) {
+    uint64_t base = (uint64_t)tss_base;
+    uint64_t limit = sizeof(struct tss_entry_struct) - 1;
+
+    uint64_t low = 0;
+    low |= (limit & 0xFFFF);
+    low |= (base & 0xFFFFFF) << 16;
+    low |= (uint64_t)0x89 << 40; // Type=9 (TSS), P=1, S=0
+    low |= ((limit >> 16) & 0xF) << 48;
+    low |= ((base >> 24) & 0xFF) << 56;
+
+    uint64_t high = (base >> 32);
+
+    gdt_entries[index] = low;
+    gdt_entries[index + 1] = high;
+}
+
+void load_gdt() {
+    asm volatile ("cli");
+    gdt_entries[0] = 0;
+
+    uint64_t kernel_code = 0;
+    kernel_code |= 0b1011 << 8; //type of selector
+    kernel_code |= 1 << 12; //not a system descriptor
+    kernel_code |= 0 << 13; //DPL field = 0
+    kernel_code |= 1 << 15; //present
+    kernel_code |= 1 << 21; //long-mode segment
+    gdt_entries[1] = kernel_code << 32;
+
+    uint64_t kernel_data = 0;
+    kernel_data |= 0b0011 << 8; //type of selector
+    kernel_data |= 1 << 12; //not a system descriptor
+    kernel_data |= 0 << 13; //DPL field = 0
+    kernel_data |= 1 << 15; //present
+    kernel_data |= 1 << 21; //long-mode segment
+    gdt_entries[2] = kernel_data << 32;
+
+    uint64_t user_code = 0;
+    user_code |= (0b1011ULL << 8);  // Executable, readable
+    user_code |= (1ULL << 12);      // S = 1 (code/data descriptor)
+    user_code |= (3ULL << 13);      // DPL = 3 (ring 3)
+    user_code |= (1ULL << 15);      // Present
+    user_code |= (1ULL << 21);      // L = 1 (64-bit code)
+    user_code |= (1ULL << 23);      // Granularity = 1 (4KiB)
+    gdt_entries[3] = user_code << 32;
+
+    uint64_t user_data = 0;
+    user_data |= 0b0011ULL << 8;   // type: data segment, read/write
+    user_data |= 1ULL << 12;       // S = 1: code/data
+    user_data |= 3ULL << 13;       // DPL = 3
+    user_data |= 1ULL << 15;       // Present
+    user_data |= 1ULL << 21;       // Long mode (harmless for data)
+    user_data |= 1ULL << 23;       // Granularity
+    gdt_entries[4] = user_data << 32;
+
+    // zero tss
+    //memset(&tss, 0, sizeof(tss_entry_t)); // why triple fault WHY
+
+    void* tss_base = &tss;
+
+    // setup kernel stack for returning to ring 0 for interrupts etc.
+    tss.rsp0 = (uintptr_t)(kernel_stack + KERNEL_STACK_SIZE);
+
+    create_tss_entry(tss_base, 5); // Set the TSS entry in the GDT (at index 5)
+
+    // Initialize gdtr fields before loading
+    gdtr.limit = (uint16_t)(num_gdt_entries * sizeof(uint64_t) - 1);
+    gdtr.base = (uint64_t)gdt_entries;
+
+    asm volatile ("lgdt %0" : : "m"(gdtr));
+    asm volatile("\
+           mov $0x10, %ax \n\
+           mov %ax, %ds \n\
+           mov %ax, %es \n\
+           mov %ax, %fs \n\
+           mov %ax, %gs \n\
+           mov %ax, %ss \n\
+           \n\
+           pop %rdi \n\
+           push $0x8 \n\
+           push %rdi \n\
+           lretq \n\
+       ");
+    //asm volatile ("movw (5 * 8) | 0, %%ax; ltr %%ax" : : : "ax");
+    asm volatile ("sti");
+    serial_puts("fucking hello??");
+}
+
+void print_gdt_entry(uint64_t entry, int index) {
+    uint16_t limit_low    = entry & 0xFFFF;
+    uint16_t base_low     = (entry >> 16) & 0xFFFF;
+    uint8_t  base_mid     = (entry >> 32) & 0xFF;
+    uint8_t  access       = (entry >> 40) & 0xFF;
+    uint8_t  limit_high   = (entry >> 48) & 0x0F;
+    uint8_t  flags        = (entry >> 52) & 0x0F;
+    uint8_t  base_high    = (entry >> 56) & 0xFF;
+
+    uint32_t base = (base_low) | (base_mid << 16) | (base_high << 24);
+    uint32_t limit = limit_low | (limit_high << 16);
+
+    // Print header
+    serial_puts("GDT Entry ");
+    serial_puthex(index);
+    serial_puts(":\n");
+
+    // Base
+    serial_puts("  Base: 0x");
+    serial_puthex(base);
+    serial_puts("\n");
+
+    // Limit
+    serial_puts("  Limit: 0x");
+    serial_puthex(limit);
+    serial_puts("\n");
+
+    // Access
+    serial_puts("  Access: 0x");
+    serial_puthex(access);
+    serial_puts("\n");
+
+    serial_puts("    Present: ");
+    serial_puthex((access >> 7) & 1);
+    serial_puts("\n");
+
+    serial_puts("    DPL: ");
+    serial_puthex((access >> 5) & 3);
+    serial_puts("\n");
+
+    serial_puts("    S (Descriptor type): ");
+    serial_puthex((access >> 4) & 1);
+    serial_puts("\n");
+
+    serial_puts("    Executable: ");
+    serial_puthex((access >> 3) & 1);
+    serial_puts("\n");
+
+    serial_puts("    Direction/Conforming: ");
+    serial_puthex((access >> 2) & 1);
+    serial_puts("\n");
+
+    serial_puts("    Readable/Writable: ");
+    serial_puthex((access >> 1) & 1);
+    serial_puts("\n");
+
+    serial_puts("    Accessed: ");
+    serial_puthex(access & 1);
+    serial_puts("\n");
+
+    // Flags
+    serial_puts("  Flags: 0x");
+    serial_puthex(flags);
+    serial_puts("\n");
+
+    serial_puts("    Granularity (4KiB blocks): ");
+    serial_puthex((flags >> 3) & 1);
+    serial_puts("\n");
+
+    serial_puts("    64-bit code segment (L bit): ");
+    serial_puthex((flags >> 1) & 1);
+    serial_puts("\n");
+
+    serial_puts("    Default operation size (D/B bit): ");
+    serial_puthex((flags >> 2) & 1);
+    serial_puts("\n");
+
+    serial_puts("\n");
+}
+
 void kmain(void) {
 
     // Ensure the bootloader actually understands our base revision (see spec).
@@ -247,7 +435,57 @@ void kmain(void) {
     }
 */
 
+/*asm volatile ("sgdt %0" : "=m"(gdtr));
+
+#define GDT_ENTRIES 9
+uint64_t new_gdt[GDT_ENTRIES] = {0};  // Each entry is 8 bytes (64 bits)
+
+// Copy old GDT (assumes 3 entries, each 8 bytes)
+memcpy(new_gdt, (void *)gdtr.base, gdtr.limit + 1);
+
+// User Code Segment (Ring 3, 64-bit)
+new_gdt[3] = 0x00AF9A000000FFFFULL;
+// Base = 0, Limit = 0xFFFFF, Flags = 64-bit, Present, Ring 3, Execute/Read
+
+// User Data Segment (Ring 3)
+new_gdt[4] = 0x00AF92000000FFFFULL;
+// Same as above, but for Data (Read/Write)
+
+// add tss segment to gdt
+tss_entry_t tss_entry;
+
+uint64_t base = (uint64_t)&tss_entry;
+uint16_t limit = sizeof(tss_entry_t) - 1; // usually 0x67
+*/
+/*new_gdt[5] = ((uint64_t)(limit & 0xFFFF)) |
+             ((uint64_t)(base & 0xFFFF) << 16) |
+             ((uint64_t)((base >> 16) & 0xFF) << 32) |
+             ((uint64_t)0x89 << 40) |
+             ((uint64_t)((limit >> 16) & 0xF) << 48) |
+             ((uint64_t)0x0 << 52) |  // granularity = 0 for TSS
+             ((uint64_t)((base >> 24) & 0xFF) << 56);
+
+new_gdt[6] = (base >> 32) & 0xFFFFFFFFULL;
+*/
+
+// insure tss is 0'd
+/*memset(&tss_entry, 0, sizeof tss_entry);
+//tss_entry.ss0  = 0x10;
+tss_entry.rsp0 = kernel_stack_top;  // Set the kernel stack pointer
+tss_entry.io_bitmap_offset = sizeof(tss_entry);  // No I/O permission bitmap
+
+struct {
+    uint16_t limit;
+    uint64_t base;
+} __attribute__((packed)) new_gdtr = {
+    .limit = sizeof(new_gdt) - 1,
+    .base = (uint64_t)new_gdt
+};
+asm volatile ("lgdt %0" :: "m"(new_gdtr));
+*/
+
 /* get shit setup */
+    load_gdt();
     idt_init();
     //irq_unmask_all();
 
@@ -321,7 +559,6 @@ uintptr_t ioapic_base = get_ioapic_addr() + get_phys_offset(); // or mapped addr
 uint8_t apic_id = 0; // CPU's LAPIC ID
 ioapic_remap_all(ioapic_base, apic_id);
 ioapic_unmask_all(ioapic_base);
-
 initialise_multitasking();
 // We're done, just hang...
     hcf();
