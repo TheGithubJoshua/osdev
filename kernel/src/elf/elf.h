@@ -1,4 +1,5 @@
 #include <stdint.h>
+#include <stdbool.h>
 
 #define ELF_NIDENT 16
 
@@ -150,6 +151,10 @@ typedef struct {
 	Elf64_Word		p_align;
 } Elf64_Phdr;
 
-void load_elf(void* file);
+typedef void (*entry_t)(void);
+
+entry_t load_elf(void* file, bool exec);
+void load_elf_from_disk(const char fn[11]);
 void load_first_elf_from_disk();
 void load_module_from_disk();
+uint64_t get_size_of_elf();

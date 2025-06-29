@@ -38,6 +38,7 @@ struct tss_entry_struct {
 typedef struct tss_entry_struct tss_entry_t;
 
 extern uintptr_t kernel_stack_top;
+extern uint64_t elf_size;
 
 void enter_userspace();
 void test_user_function();

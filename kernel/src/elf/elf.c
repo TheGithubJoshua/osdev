@@ -3,10 +3,14 @@
 #include "memory.h"
 #include "../thread/thread.h"
 #include "../mm/pmm.h"
+#include "../userspace/enter.h"
 #include "../drivers/fat/fat.h"
 #include <limine.h>
 #include <stddef.h>
-#include <stdbool.h>
+#include <stdint.h>
+
+Elf64_Phdr *ph;
+uint64_t elf_size;
 
 static struct limine_internal_module internal_module = {
     .path = "module",
@@ -306,7 +310,7 @@ void *elf_load_file(void *file) {
 	return NULL;
 }
 
-void load_segment_to_memory(uint64_t pml4_phys, Elf64_Phdr *phdr, uint64_t segment_phys_addr) {
+entry_t load_segment_to_memory(uint64_t pml4_phys, Elf64_Phdr *phdr, uint64_t segment_phys_addr) {
     uint64_t vaddr_start = phdr->p_vaddr;
     uint64_t memsz = phdr->p_memsz;
     uint64_t filesz = phdr->p_filesz;
@@ -346,7 +350,7 @@ void load_segment_to_memory(uint64_t pml4_phys, Elf64_Phdr *phdr, uint64_t segme
 }
 
 // takes the address of an ELF file in memory and executes it
-void load_elf(void *file) {
+entry_t load_elf(void *file, bool exec) {
 uint64_t pml4_phys_addr = read_cr3();
 
 Elf64_Ehdr *ehdr = file;
@@ -363,7 +367,6 @@ result = elf_load_file(file);
 if (result) { serial_puts("file loaded!"); } else { serial_puts("loading failed!"); }
 //void *entry = elf_load_file(ehdr);
 
-typedef void (*entry_t)(void);
 uintptr_t entry_offset = /*ehdr->e_entry*/1000;  // ELF entry point relative to load base // fix me
 uintptr_t base = (uintptr_t)file;
 serial_puts("\nbase: ");
@@ -398,7 +401,6 @@ serial_puts("\n");
     //memset((uint8_t *)dest + ph->p_filesz, 0, ph->p_memsz - ph->p_filesz);
 }
 
-Elf64_Phdr *ph;
 
 for (int i = 0; i < ehdr->e_phnum; i++) {
     ph = &phdrs[i];
@@ -434,6 +436,10 @@ for (int i = 0; i < ehdr->e_phnum; i++) {
     }
     serial_puts("\n");
 
+    elf_size = ph->p_filesz;
+    serial_puts("file_size: ");
+    serial_puthex(elf_size);
+
 }
 
 if (entry != NULL) {
@@ -450,8 +456,19 @@ if (entry != NULL) {
     serial_puts("addr of entry(): ");
     serial_puthex((uint64_t)entry);
     serial_puts("task created!");
+        if (exec) {
+    serial_puts("file: ");
+    serial_puthex((uint64_t)file);
+}
     //map_nvme_mmio(0x00000000000003F8, 0x00000000000003F8);
+    if (exec) {
     entry();  // jump into the loaded ELF executable
+} else {
+	serial_puts("(elf loaded, will not execute)");
+	serial_puts("e_entry: ");
+	serial_puthex(ehdr->e_entry);
+	return entry + 0x0C18; // why (im not questioning it)
+}
 } else {
     serial_puts("Failed to load ELF.\n");
 }
@@ -464,7 +481,7 @@ unsigned int cluster = fat_getcluster((char*)fn);
 if (cluster) {
     // Now you can actually read the file. For example:
     char *filedata = fat_readfile(cluster);
-    if (filedata) { load_elf(filedata); }
+    if (filedata) { load_elf(filedata, true); }
 } else {
     serial_puts("loading ELF from disk failed due to FAT error!");
 }
@@ -476,4 +493,18 @@ task_exit();
 void load_module_from_disk() {
 	static const char fn[11] = { 'M','O','D','U','L','E',' ',' ',' ',' ',' ' };
 	load_elf_from_disk(fn);
+}
+
+uint64_t get_size_of_elf() {
+	uint64_t vaddr_start = ph->p_vaddr;
+	uint64_t memsz = ph->p_memsz;
+	uint64_t filesz = ph->p_filesz;
+
+	// Calculate page-aligned start and end
+	uint64_t vaddr_page_start = vaddr_start & ~(PAGE_SIZE - 1);
+	uint64_t vaddr_page_end = (vaddr_start + memsz + PAGE_SIZE - 1) & ~(PAGE_SIZE - 1);
+	elf_size = vaddr_page_end - vaddr_page_start;
+	serial_puts("elf size before ret: ");
+	serial_puthex(elf_size);
+	return elf_size;
 }

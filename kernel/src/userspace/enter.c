@@ -1,8 +1,11 @@
 #include "memory.h"
 #include "../mm/pmm.h"
 #include "../util/fb.h"
+#include "../elf/elf.h"
+#include "../drivers/fat/fat.h"
 #include "../iodebug.h"
 #include "enter.h"
+#include <stdbool.h>
 
 extern void jump_usermode();
 tss_entry_t tss_entry;
@@ -10,6 +13,21 @@ uint64_t stack_top;
 //gdtr_t gdtr;
 
 unsigned char loop[2] = { 0xEB, 0xFE };
+
+entry_t load_elf_for_userspace() {
+    static const char fn[11] = { 'U','S','E','R','C','O','D','E',' ',' ',' ' };
+    if (fat_getpartition()) {
+    unsigned int cluster = fat_getcluster((char*)fn);
+    if (cluster) {
+        // Now you can actually read the file. For example:
+        char *filedata = fat_readfile(cluster);
+        if (filedata) { entry_t elf = load_elf(filedata, false); return elf; }
+    } else {
+        serial_puts("loading user code from disk failed due to FAT error!");
+    }
+    }
+    return 0;
+}
 
 void enter_userspace() {
     flanterm_write(flanterm_get_ctx(), "\033[32m", 5);
@@ -40,8 +58,11 @@ stack_top = virt_stack_addr + STACK_SIZE - 8;
 
 //void* phys_page = palloc(1, false); // allocate one page
 
+entry_t elf = load_elf_for_userspace();
+serial_puts("elf size: ");
+serial_puthex(elf_size);
 // Map the page to userspace address, readable + executable + user access
-void* phys_page = palloc(1, false); // alloc physical
+void* phys_page = palloc((elf_size + PAGE_SIZE - 1) / PAGE_SIZE, false); // alloc physical
 //void* temp_kernel_mapping = (void*)0x3333906969000000; // pick an unused virtual address in kernel space
 
 // Temporarily map it so kernel can write into it
@@ -49,12 +70,17 @@ void* phys_page = palloc(1, false); // alloc physical
          PAGE_PRESENT | PAGE_WRITABLE);
 */
 uint64_t user_code_vaddr = 0x400000;
+
 // Then map it into user space for execution
-map_page(read_cr3(), user_code_vaddr, (uint64_t)phys_page,
-         PAGE_PRESENT | PAGE_USER | PAGE_WRITABLE | PAGE_EXECUTE); // don't set NO_EXECUTE
+for (uint64_t offset = 0; offset < elf_size; offset += PAGE_SIZE) {
+    map_page(read_cr3(),
+             user_code_vaddr + offset,
+             (uint64_t)phys_page + offset,
+             PAGE_PRESENT | PAGE_USER | PAGE_WRITABLE | PAGE_EXECUTE);
+}
 
 // Now it's safe to memcpy
-memcpy((void*)user_code_vaddr, loop, sizeof(loop));
+memcpy((void*)user_code_vaddr, (void*)elf, elf_size);
 
 //memcpy((void*)phys_page, loop, sizeof(loop));
 flanterm_write(flanterm_get_ctx(), "[KERNEL] Welcome to userland!\n", 30);
