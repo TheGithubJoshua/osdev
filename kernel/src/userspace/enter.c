@@ -14,8 +14,7 @@ uint64_t stack_top;
 
 unsigned char loop[2] = { 0xEB, 0xFE };
 
-entry_t load_elf_for_userspace() {
-    static const char fn[11] = { 'U','S','E','R','C','O','D','E',' ',' ',' ' };
+entry_t load_elf_for_userspace(const char fn[11]) {
     if (fat_getpartition()) {
     unsigned int cluster = fat_getcluster((char*)fn);
     if (cluster) {
@@ -29,7 +28,7 @@ entry_t load_elf_for_userspace() {
     return 0;
 }
 
-void enter_userspace() {
+void enter_userspace(const char fn[11]) {
     flanterm_write(flanterm_get_ctx(), "\033[32m", 5);
     flanterm_write(flanterm_get_ctx(), "[KERNEL] Handing over control...\n", 35);
     asm volatile (
@@ -57,10 +56,10 @@ stack_top = virt_stack_addr + STACK_SIZE - 8;
 //tss_entry.io_bitmap_offset = sizeof(tss_entry);  // No I/O permission bitmap
 
 //void* phys_page = palloc(1, false); // allocate one page
-
-entry_t elf = load_elf_for_userspace();
+entry_t elf = load_elf_for_userspace(fn);
 serial_puts("elf size: ");
 serial_puthex(elf_size);
+elf_size += 0x2000; // fix me
 // Map the page to userspace address, readable + executable + user access
 void* phys_page = palloc((elf_size + PAGE_SIZE - 1) / PAGE_SIZE, false); // alloc physical
 //void* temp_kernel_mapping = (void*)0x3333906969000000; // pick an unused virtual address in kernel space
@@ -89,6 +88,7 @@ flanterm_write(flanterm_get_ctx(), "\033[0m", 5);
 jump_usermode();
 }
 
-void test_user_function() {
-	//asm volatile ("cli");
+void demo_userland() {
+    static const char fn[11] = { 'U','S','E','R','C','O','D','E',' ',' ',' ' };
+    enter_userspace(fn);
 }

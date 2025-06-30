@@ -6,6 +6,8 @@
 #include "../iodebug.h"
 #include "interrupts.h"
 #include "../memory.h"
+#include "../util/fb.h"
+#include "../syscall/syscall.h"
 #include "../drivers/pci/pci.h"
 //#include "../drivers/ahci/ahci.h"
 #include "../thread/thread.h"
@@ -35,6 +37,30 @@ typedef struct {
 } __attribute__((packed)) idtr_t;
 
 static idtr_t idtr; // IDTR
+
+void set_idt_entry(uint8_t vector, void* handler, uint8_t dpl) {
+    uint64_t addr = (uint64_t)handler;
+
+    idt_entry_t* entry = &idt[vector];
+    entry->isr_low    = addr & 0xFFFF;
+    entry->kernel_cs  = 0x08; // GDT kernel code segment selector
+    entry->ist        = 0;    // Use default kernel stack (no IST switch)
+    
+    // Gate type: 0xE = interrupt gate (0xF = trap gate)
+    // 0x80 = present
+    // (dpl & 0x3) << 5 = privilege level
+    entry->attributes = 0x80 | ((dpl & 0x3) << 5) | 0x0E;
+
+    entry->isr_mid    = (addr >> 16) & 0xFFFF;
+    entry->isr_high   = (addr >> 32) & 0xFFFFFFFF;
+    entry->reserved   = 0;
+
+    uint8_t *p = (uint8_t *)&idt[0x69];
+    serial_puts("IDT entry attributes: ");
+    serial_puthex(p[5]);  // attributes is the 6th byte in the entry struct
+    serial_puts("\n");
+}
+
 /*
 typedef struct cpu_status_t {
     uint64_t rax;
@@ -121,9 +147,19 @@ void exception_handler(cpu_status_t* cpu_status_t) {
         uintptr_t val;
         asm volatile ("mov %%cr2, %0" : "=r"(val));
         serial_puthex(val);
-        // there will be checking of error code here
-        // (eventually)
-        map_nvme_mmio(val, val); // im lazy
+        if (cpu_status_t->error_code == 0 || cpu_status_t->error_code == 0x2) {
+        map_nvme_mmio(val, val);
+        flanterm_write(flanterm_get_ctx(), "\033[31m", 5);
+        flanterm_write(flanterm_get_ctx(), "[KERNEL][WARN] Non-Present page identity mapped!\n", 50);
+        flanterm_write(flanterm_get_ctx(), "\033[0m", 5);
+    } else {
+        flanterm_write(flanterm_get_ctx(), "\033[31m", 5);
+        flanterm_write(flanterm_get_ctx(), "[KERNEL][FATAL] Page fault at ", 25);
+        flanterm_write(flanterm_get_ctx(), (const char*)val, 20);
+        flanterm_write(flanterm_get_ctx(), "!\n", 3);
+        flanterm_write(flanterm_get_ctx(), "\033[0m", 5);
+        asm volatile ("cli; hlt");
+    }
         //asm volatile ("cli; hlt");
         break;
     case 15:
@@ -269,6 +305,54 @@ void irq_handler(cpu_status_t* cpu_status_t) {
     outb(0x20, 0x20); // send EOI to master PIC
     apic_write(0xB0, 0);
 
+}
+
+cpu_status_t* syscall_handler(cpu_status_t* regs) {
+    serial_puts("\ngot syscall: ");
+    serial_puthex(regs->rax);
+    serial_puts("!");
+    // rax is syscall number
+    switch (regs->rax) {
+        case 0:
+            // read
+            break;
+        case 1:
+            // write
+            break;
+        case 2:
+            // open
+            break;
+        case 3:
+            // close
+            break;
+        case 4:
+            // map memory
+            break;
+        case 5:
+            // serial_puts
+            serial_puts((const char*)regs->rdi);
+            break;
+        case 6:
+            // serial_puthex
+            serial_puthex(regs->rdi);
+            break;
+        case 7:
+            // serial_putc
+            serial_putc((char)regs->rdi);
+            break;
+        case 8:
+            // print
+            flanterm_write(flanterm_get_ctx(), (const char*)regs->rdi, regs->rsi);
+            break;
+        case 9:
+            // exit current thread
+            break;   
+        default:
+            regs->rax = E_NO_SYSCALL;
+            break;
+    }
+
+    return regs;
 }
 
 void sata_irq_handler() {

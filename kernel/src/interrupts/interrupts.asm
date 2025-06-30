@@ -20,7 +20,7 @@ isr_stub_%+%1:
     push r14
     push r15
     mov rdi, rsp
-    ;mov rdi, %1
+    ;mov rsi, %1
     call exception_handler
     pop r15
     pop r14
@@ -127,11 +127,54 @@ extern beep
     pop rax
     add rsp, 16      ; Discard error code
     iretq
-    call beep ; beep
+    ;call beep ; beep
 %endmacro
+
+global isr_stub_105
+isr_stub_105:
+    push qword 0
+    push qword 105
+    push rax
+    push rbx
+    push rcx
+    push rdx
+    push rsi
+    push rdi
+    push rbp
+    ;push rsp
+    push r8
+    push r9
+    push r10
+    push r11
+    push r12
+    push r13
+    push r14
+    push r15
+    mov rdi, rsp
+    ;mov rdi, %1
+    call syscall_handler
+    pop r15
+    pop r14
+    pop r13
+    pop r12
+    pop r11
+    pop r10
+    pop r9
+    pop r8
+    ;pop rsp
+    pop rbp
+    pop rdi
+    pop rsi
+    pop rdx
+    pop rcx
+    pop rbx
+    pop rax
+    add rsp, 16      ; Discard error code
+    iretq
 
 extern exception_handler
 extern irq_handler
+extern syscall_handler
 
 isr_no_err_stub 0
 isr_no_err_stub 1

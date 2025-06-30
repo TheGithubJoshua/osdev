@@ -84,6 +84,7 @@ monitor-uefi: ovmf/ovmf-code-x86_64.fd $(IMAGE_NAME).iso
 		-monitor stdio \
 		-gdb tcp::1234 \
 		-serial file:serial.log \
+		-hda disk.img \
 		$(QEMUFLAGS)
 
 .PHONY: debug-uefi
