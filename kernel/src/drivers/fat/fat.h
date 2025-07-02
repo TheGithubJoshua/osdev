@@ -27,3 +27,4 @@
 int fat_getpartition(void);
 unsigned int fat_getcluster(char *fn);
 char *fat_readfile(unsigned int cluster);
+void convert_to_fat8_3(const char *input, char fn[11]);

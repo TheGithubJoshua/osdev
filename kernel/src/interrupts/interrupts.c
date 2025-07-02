@@ -7,6 +7,7 @@
 #include "interrupts.h"
 #include "../memory.h"
 #include "../util/fb.h"
+#include "../drivers/fat/fat.h"
 #include "../syscall/syscall.h"
 #include "../drivers/pci/pci.h"
 //#include "../drivers/ahci/ahci.h"
@@ -329,6 +330,11 @@ cpu_status_t* syscall_handler(cpu_status_t* regs) {
             break;
         case 4:
             // map memory
+            uint64_t va = (uint64_t)regs->rdi; // virtual address
+            uint64_t pa = (uint64_t)regs->rsi; // physical address
+            uint64_t flags = (uint64_t)regs->rdx; // flags
+
+            map_page(read_cr3(), va, pa, flags);
             break;
         case 5:
             // serial_puts
@@ -347,7 +353,8 @@ cpu_status_t* syscall_handler(cpu_status_t* regs) {
             flanterm_write(flanterm_get_ctx(), (const char*)regs->rdi, regs->rsi);
             break;
         case 9:
-            // exit current thread
+            // exit current task
+            task_exit();
             break;   
         default:
             regs->rax = E_NO_SYSCALL;

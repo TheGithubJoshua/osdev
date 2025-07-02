@@ -14,10 +14,19 @@ static int memcmp(void *s1, void *s2, int n)
     while(n-->0){ if(*a!=*b) { return *a-*b; } a++; b++; }
     return 0;
 }
-
 #else
 #define memcmp __builtin_memcmp
 #endif
+
+static void *memset(void *s, int c, size_t n) {
+    uint8_t *p = (uint8_t *)s;
+
+    for (size_t i = 0; i < n; i++) {
+        p[i] = (uint8_t)c;
+    }
+
+    return s;
+}
 
 // get the end of bss segment from linker
 extern unsigned char _end;
@@ -446,4 +455,29 @@ char *fat_readfile(unsigned int cluster)
     cluster = next_cluster;
 }
     return (char*)data;
+}
+
+void convert_to_fat8_3(const char *input, char fn[11]) {
+    // Initialize the output array with spaces
+    memset(fn, ' ', sizeof(fn));
+
+    // Variables to track positions in base name and extension
+    int base_pos = 0;
+    int ext_pos = 9; // Start of extension (8.3 format has a space between base and extension)
+
+    while (*input) {
+        if (*input == '.') {
+            // If a dot is found, switch to the extension part
+            input++;
+            continue;
+        }
+
+        if (base_pos < 8 && *input != ' ') {
+            fn[base_pos++] = *input;
+        } else if (ext_pos < 11) {
+            fn[ext_pos++] = *input;
+        }
+
+        input++;
+    }
 }
