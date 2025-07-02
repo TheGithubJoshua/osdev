@@ -1,5 +1,6 @@
 #include <stddef.h>
 #include <stdint.h>
+#include <stdbool.h>
 
 #define PAGE_PRESENT 0x1
 #define PAGE_WRITABLE 0x2
@@ -18,6 +19,9 @@
 #define MAP_PRIVATE   0x02
 #define MAP_ANONYMOUS 0x20
 
+#define PAGE_SHIFT 12
+#define MB (1 << 20)
+
 //#define PAGE_SIZE 4096
 
 // Extract indices from virtual address
@@ -27,6 +31,28 @@
 #define PT_INDEX(va)   (((va) >> 12) & 0x1FF)
 
 #define virt_to_phys(x) ((uint64_t)(x) - get_phys_offset())
+
+typedef struct {
+    uint64_t present : 1;
+    uint64_t writable : 1;
+    uint64_t user_mode : 1;
+    uint64_t write_through : 1;
+    uint64_t cache_disable : 1;
+    uint64_t accessed : 1;
+    uint64_t dirty : 1;
+    uint64_t page_size : 1; // For PDPT and PD entries
+    uint64_t global : 1;
+    uint64_t ignored0 : 3;
+    uint64_t available : 9;
+    uint64_t address : 52;
+} page_entry_t;
+
+typedef struct {
+    page_entry_t entries[512];
+} __attribute__((aligned(0x1000))) page_directory_t;
+
+// Assume physical memory identity mapped for page tables access.
+typedef uint64_t pt_entry_t;
 
 uint64_t get_phys_offset(void);
 void *phys_to_virt(void* phys_addr);
@@ -39,3 +65,5 @@ void map_nvme_mmio(uint64_t virtual_addr, uint64_t physical_addr);
 void map_page(uint64_t pml4_phys, uint64_t virtual_addr, uint64_t physical_addr, uint64_t flags);
 void map_size(uint64_t phys_addr, uint64_t virt_addr, uint64_t size);
 uint64_t read_cr3(void);
+pt_entry_t *get_pml4_table(uint64_t pml4_phys);
+int is_mapped(uint64_t virtual_addr);

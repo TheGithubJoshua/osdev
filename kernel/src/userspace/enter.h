@@ -43,3 +43,4 @@ extern uint64_t elf_size;
 void enter_userspace(const char fn[11]);
 void test_user_function();
 void demo_userland();
+uint64_t find_address(uint64_t elf_size);

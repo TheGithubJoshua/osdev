@@ -147,6 +147,8 @@ void exception_handler(cpu_status_t* cpu_status_t) {
         uintptr_t val;
         asm volatile ("mov %%cr2, %0" : "=r"(val));
         serial_puthex(val);
+        serial_puts("error code: ");
+        serial_puthex(cpu_status_t->error_code);
         if (cpu_status_t->error_code == 0 || cpu_status_t->error_code == 0x2) {
         map_nvme_mmio(val, val);
         flanterm_write(flanterm_get_ctx(), "\033[31m", 5);

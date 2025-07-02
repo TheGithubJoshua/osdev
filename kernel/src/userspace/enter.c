@@ -10,6 +10,7 @@
 extern void jump_usermode();
 tss_entry_t tss_entry;
 uint64_t stack_top;
+uint64_t user_code_vaddr;
 //gdtr_t gdtr;
 
 unsigned char loop[2] = { 0xEB, 0xFE };
@@ -68,8 +69,10 @@ void* phys_page = palloc((elf_size + PAGE_SIZE - 1) / PAGE_SIZE, false); // allo
 /*map_page(read_cr3(), (uint64_t)temp_kernel_mapping, (uint64_t)phys_page,
          PAGE_PRESENT | PAGE_WRITABLE);
 */
-uint64_t user_code_vaddr = 0x400000;
-
+// start virtual address of user code
+user_code_vaddr = find_address(elf_size);
+serial_puts("user_code_vaddr: ");
+serial_puthex(user_code_vaddr);
 // Then map it into user space for execution
 for (uint64_t offset = 0; offset < elf_size; offset += PAGE_SIZE) {
     map_page(read_cr3(),
@@ -91,4 +94,34 @@ jump_usermode();
 void demo_userland() {
     static const char fn[11] = { 'U','S','E','R','C','O','D','E',' ',' ',' ' };
     enter_userspace(fn);
+}
+
+#define PAGE_PAGES(nbytes)  (((nbytes) + PAGE_SIZE - 1) / PAGE_SIZE)
+
+uint64_t find_address(uint64_t elf_size) {
+    uint64_t pages_needed = PAGE_PAGES(elf_size);
+    uint64_t free_run = 0;
+    uint64_t run_start = 0;
+
+    // Start at some safe VA
+    uint64_t va = 0x00400000;
+
+    // Arbitrary upper bound
+    uint64_t va_end = 0xffffffff80000000;
+
+    for (uint64_t va = 0x00400000; va < va_end; va += MB) {
+            if (!is_mapped(va)) {
+            // this page is free
+            if (free_run == 0)
+                run_start = va;
+            if (++free_run >= pages_needed)
+                return run_start;
+        } else {
+            // hit an in-use page: reset run
+            free_run = 0;
+        }
+        va += PAGE_SIZE;
+    }
+
+    return 0; // no region found
 }

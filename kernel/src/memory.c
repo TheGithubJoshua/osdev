@@ -1,7 +1,6 @@
 #include <limine.h>
 #include <stddef.h>
 #include <stdint.h>
-#include <stdbool.h>
 #include "iodebug.h"
 #include "mm/pmm.h"
 #include "memory.h"
@@ -143,10 +142,7 @@ strncpy (s1, s2, n)
   return s;
 }
 
-// Assume physical memory identity mapped for page tables access.
-typedef uint64_t pt_entry_t;
-
-static pt_entry_t *get_pml4_table(uint64_t pml4_phys) {
+pt_entry_t *get_pml4_table(uint64_t pml4_phys) {
     return (pt_entry_t *)pml4_phys;
 }
 
@@ -244,3 +240,44 @@ void map_size(uint64_t phys_addr, uint64_t virt_addr, uint64_t size) {
     }
 }
 
+#define PAGE_SHIFT   12
+#define PAGE_MASK    0x1FF
+
+/**
+ * is_mapped — return 1 if `virtual_addr` has a 4 KiB mapping,
+ *            0 otherwise.
+ */
+int is_mapped(uint64_t virtual_addr) {
+    // 1) Fetch and map the PML4 page
+    uint64_t pml4_phys = read_cr3() & ~0xFFFULL;
+    uint64_t pml4_virt = pml4_phys + get_phys_offset();
+    uint64_t *pml4 = (uint64_t *)pml4_virt;
+
+    // ——— Walk PML4 → PDPT ———
+    uint64_t e = pml4[PML4_INDEX(virtual_addr)];
+    if (!(e & PAGE_PRESENT))
+        return 0;
+    uint64_t pdpt_phys = e & ~0xFFFULL;
+
+    // ——— Walk PDPT → PD ———
+    uint64_t *pdpt = (uint64_t *)(pdpt_phys + get_phys_offset());
+    e = pdpt[PDPT_INDEX(virtual_addr)];
+    if (!(e & PAGE_PRESENT))
+        return 0;
+    uint64_t pd_phys = e & ~0xFFFULL;
+
+    // ——— Walk PD → PT ———
+    uint64_t *pd = (uint64_t *)(pd_phys + get_phys_offset());
+    e = pd[PD_INDEX(virtual_addr)];
+    if (!(e & PAGE_PRESENT))
+        return 0;
+    uint64_t pt_phys = e & ~0xFFFULL;
+
+    // ——— Finally check PT entry ———
+    uint64_t *pt = (uint64_t *)(pt_phys + get_phys_offset());
+    e = pt[PT_INDEX(virtual_addr)];
+    if (!(e & PAGE_PRESENT))
+        return 0;
+
+    return 1;
+}

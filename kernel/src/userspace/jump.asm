@@ -1,6 +1,7 @@
 global jump_usermode
 extern test_user_function
 extern stack_top
+extern user_code_vaddr
 
 jump_usermode:
     cli
@@ -20,7 +21,7 @@ jump_usermode:
     push qword 0x1B              ; user code segment (RPL=3)
 
     ; Push RIP (entry point)
-    mov rax, 0x400000
+    mov rax, [user_code_vaddr]
     push rax
 
     ; Done: perform the transition

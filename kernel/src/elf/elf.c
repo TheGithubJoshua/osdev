@@ -436,7 +436,7 @@ for (int i = 0; i < ehdr->e_phnum; i++) {
     }
     serial_puts("\n");
 
-    elf_size = ph->p_filesz;
+    elf_size = ph->p_filesz; // fix me
     serial_puts("file_size: ");
     serial_puthex(elf_size);
 

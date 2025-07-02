@@ -5,7 +5,9 @@
 #include "../iodebug.h"
 #include "../elf/elf.h"
 #include "../userspace/enter.h"
+#include "../syscall/syscall.h"
 #include "../drivers/ahci/ahci.h"
+#include "../memory.h"
 #include "../drivers/pci/pci.h"
 #include "../drivers/nvme/nvme.h"
 #include "../timer.h"
@@ -134,6 +136,17 @@ task_t *create_task(void (*entry)(void)) {
     if (!t) return NULL;
     t->state = TASK_READY;
 
+   /* // new page table
+    uint64_t* pml4 = palloc(1, true);
+    memset(pml4, 0, 4096);
+
+    // copy kernel mappings
+    pt_entry_t* kernel_pml4 = (pt_entry_t*)((uintptr_t)read_cr3() + get_phys_offset());
+    //uint64_t* kernel_pml4 = (uint64_t *)(read_cr3() + get_phys_offset());
+    memcpy(&pml4[256], &kernel_pml4[256], 256 * sizeof(uint64_t));
+    serial_puts("\npml4[256]: ");
+    serial_puthex((uint64_t)pml4[256]);
+    */
     // 2) Allocate & build the stack
     #define STACK_WORDS (8192/8)
     serial_puts("stack :\n");
@@ -155,6 +168,8 @@ task_t *create_task(void (*entry)(void)) {
     *--rsp = (uint64_t)entry;
 
     t->rsp = rsp;
+    /*uint64_t phys_pml4 = (uint64_t)pml4 - get_phys_offset();
+    t->cr3 = phys_pml4;*/
     rsp = (uint64_t *)((uintptr_t)rsp & ~0xF);
 
     // 3) splice into the existing circle
@@ -251,7 +266,8 @@ void initialise_multitasking(void) {
     //create_task(init_nvme);
     //create_task(init_ahci);
     create_task(load_module_from_disk);
-    create_task(enter_userspace); // enter the userland.
+    create_task(init_syscall);
+    create_task(demo_userland); // enter the userland.
 
     debug_task_list();
 
