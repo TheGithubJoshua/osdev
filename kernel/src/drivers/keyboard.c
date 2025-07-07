@@ -4,10 +4,50 @@
 #include <stdarg.h>
 #include "../util/fb.h"
 #include "timer.h"
+#include "../drivers/fat/fat.h"
+#include "../mm/pmm.h"
+#include "../iodebug.h"
 #include "cmos/rtc.h"
 #include "flanterm/flanterm.h"
+#include "keyboard.h"
 #include "flanterm/backends/fb.h"
 #include "font.c"
+
+static inline int strcmp(const char *s1, const char *s2) {
+    while (*s1 && (*s1 == *s2)) {
+        s1++;
+        s2++;
+    }
+    return (unsigned char)*s1 - (unsigned char)*s2;
+}
+
+static inline int strncmp(const char *s1, const char *s2, register size_t n)
+{
+  register unsigned char u1, u2;
+
+  while (n-- > 0)
+    {
+      u1 = (unsigned char) *s1++;
+      u2 = (unsigned char) *s2++;
+      if (u1 != u2)
+    return u1 - u2;
+      if (u1 == '\0')
+    return 0;
+    }
+  return 0;
+}
+
+static size_t strlen(const char *s) {
+    size_t len = 0;
+    while (s[len] != '\0') {
+        ++len;
+    }
+    return len;
+}
+
+// Define the buffer to store input characters
+char input_buffer[BUFFER_SIZE];
+volatile int buffer_index = 0;
 
 // PS/2 Set 1 scancode to ASCII mapping for UK keyboard layout
 // Index: scancode (0x00 to 0x7F)
@@ -129,6 +169,84 @@ void keyboard_handler() {
         if (!ft_ctx) return;
         flanterm_write(ft_ctx, buf, 1);
 
+        if (buf[0] != '\0') {
+            // Add character to buffer if it's not a null character
+            if (buffer_index < BUFFER_SIZE - 1) {
+                input_buffer[buffer_index++] = buf[0];
+            }
+        }
+
+        // temporary 'shell'
+        if (buffer_index > 0 && input_buffer[buffer_index - 1] == '\n') {
+            input_buffer[buffer_index] = '\0'; // Null-terminate the string
+            buffer_index = 0; // Reset the buffer index
+
+            // Process the command
+            if (!strcmp(input_buffer, "clear\n")) {
+                flanterm_write(ft_ctx, "\033[2J", 4); // clear screen
+                flanterm_write(ft_ctx, "\033[H", 4); // move cursor home
+            } else if (!strcmp(input_buffer, "help\n")) {
+                flanterm_write(ft_ctx, "Available commands:\n", 30);
+                flanterm_write(ft_ctx, "clear - clear the terminal\n", 28);
+                flanterm_write(ft_ctx, "halt - shutdown the system\n", 27);
+                flanterm_write(ft_ctx, "ls - list all files on the filesystem\n", 40);
+                flanterm_write(ft_ctx, "cat - print the contents of a file\n", 40);
+            } else if (!strcmp(input_buffer, "halt\n")) {
+                flanterm_write(flanterm_get_ctx(), "\033[33m", 5);
+                flanterm_write(ft_ctx, "[ACPI] Shutting down system...\n", 27);
+                flanterm_write(ft_ctx, "System is going down!", 22);
+                //timer_wait(50);
+                lai_enter_sleep(5);
+            } else if (!strcmp(input_buffer, "ls\n")) {
+                FileListNode *files = fat_list_all_files();
+                FileListNode *current = files;
+                while (current != NULL) {
+                    flanterm_write(ft_ctx, current->filename, sizeof(current->filename));
+                    flanterm_write(ft_ctx, " ", 1);
+                    FileListNode *next = current->next;
+                    pfree(current, (sizeof(FileListNode) + PAGE_SIZE - 1) / PAGE_SIZE); // Free the memory allocated for each node
+                    current = next;
+                }
+                flanterm_write(ft_ctx, "\n", 1);
+               } else if (!strncmp(input_buffer, "cat ", 4)) {
+                   // Extract the filename manually from the input buffer
+                   char filename[256];
+                   int i = 0;
+                   const char *src = input_buffer + 4;
+
+                   // Copy characters until space, newline, or null terminator
+                   while (*src && *src != ' ' && *src != '\n' && i < sizeof(filename) - 1) {
+                       filename[i++] = *src++;
+                   }
+                   filename[i] = '\0';
+
+                   char fn[11];
+                   convert_to_fat8_3(filename, fn);
+
+                   unsigned int cluster = fat_getcluster((char*)fn);
+                   if (cluster) {
+                       // Now you can actually read the file. For example:
+                       char *filedata = fat_readfile(cluster);
+                       if (filedata) {
+                           // Write file content to the terminal
+                           flanterm_write(ft_ctx, filedata, strlen(filedata));
+                           pfree(filedata, (FAT_WORKBUF_SIZE + PAGE_SIZE - 1) / PAGE_SIZE);
+                       } else {
+                           serial_puts("ERROR reading file into memory\n");
+                       }
+                   } else if (!cluster) {
+                       serial_puts("no cluster\n");
+                   } else {
+                       serial_puts("FAT partition not found???\n");
+                   }
+            } else if (!strcmp(input_buffer, " ") || !strcmp(input_buffer, "\n")) { // nothing
+            } else {
+                flanterm_write(ft_ctx, "\033[31m", 5);
+                flanterm_write(ft_ctx, "Unknown command: ", 26);
+                flanterm_write(ft_ctx, input_buffer, strlen(input_buffer));
+                flanterm_write(ft_ctx, "\033[0m", 5);
+            }
+    }
         // special keys
         switch (scancode) {
         case 0x48:

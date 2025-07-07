@@ -539,3 +539,132 @@ void convert_to_fat8_3(const char *input, char fn[11]) {
     }
 }
 
+// Helper function to create a new list node
+FileListNode* create_file_list_node(const char *filename) {
+    FileListNode *node = (FileListNode *)palloc((sizeof(FileListNode) + PAGE_SIZE - 1) / PAGE_SIZE, true);
+    if (!node) return NULL;
+    strncpy(node->filename, filename, sizeof(node->filename) - 1);
+    node->filename[sizeof(node->filename) - 1] = '\0'; // Ensure null-termination
+    node->next = NULL;
+    return node;
+}
+
+void fat_list_files(unsigned int cluster, FileListNode **file_list);
+
+// Function to append a filename to the list
+void append_to_file_list(FileListNode **head, const char *filename) {
+    FileListNode *new_node = create_file_list_node(filename);
+    if (!new_node) return; // Memory allocation failed
+
+    if (*head == NULL) {
+        *head = new_node;
+    } else {
+        FileListNode *current = *head;
+        while (current->next != NULL) {
+            current = current->next;
+        }
+        current->next = new_node;
+    }
+}
+
+/**
+ * List all files in the root directory and its subdirectories and return the list
+ */
+FileListNode* fat_list_all_files() {
+    FileListNode *file_list = NULL;
+    unsigned int root_cluster = bpb->rc;
+    fat_list_files(root_cluster, &file_list);
+    return file_list;
+}
+
+/**
+ * Recursively list all files starting from a given cluster and append to the list
+ */
+void fat_list_files(unsigned int cluster, FileListNode **file_list) {
+    if (!bpb) {
+        serial_puts("ERROR: BPB not initialized\n");
+        return;
+    }
+
+    unsigned char t[FAT_WORKBUF_SIZE];
+
+    unsigned int first_data_sector = 
+          partitionlba
+        + bpb->rsc
+        + (bpb->nf * bpb->spf32);
+
+    unsigned int fat_lba = partitionlba + bpb->rsc;
+    unsigned int fat_sectors = bpb->spf32;
+    if (!ahci_readblock(fat_lba, t, fat_sectors)) {
+        serial_puts("ERROR: Could not read FAT into memory\n");
+        return;
+    }
+
+    unsigned int *fat32 = (unsigned int *)t;
+
+    while (cluster < 0x0FFFFFF8) {
+        unsigned int first_sector_of_cluster = 
+              first_data_sector 
+            + (cluster - 2) * bpb->spc;
+
+        for (unsigned int sec_off = 0; sec_off < bpb->spc; sec_off++) {
+            unsigned char sector_buf[512];
+            if (!ahci_readblock(first_sector_of_cluster + sec_off, sector_buf, 1)) {
+                serial_puts("ERROR: Failed to read directory sector\n");
+                return;
+            }
+
+            for (int offset = 0; offset < 512; offset += 32) {
+                unsigned char *entry = &sector_buf[offset];
+
+                if (entry[0] == 0x00) {
+                    break; // End of directory
+                }
+                if (entry[0] == 0xE5 || (entry[11] & 0x0F) == 0x0F) {
+                    continue;
+                }
+
+                bool directory = false;
+                char filename[13];
+                if ((entry[11] & 0x10) == 0x10) {
+                    directory = true;
+                } else {
+                    // Construct the file name
+                    int c;
+                    for (c = 0; c < 8 && entry[c] != ' '; c++) {
+                        filename[c] = entry[c];
+                    }
+                    if (entry[8] != ' ') {
+                        filename[c++] = '.';
+                        for (int i = 8; i < 11 && entry[i] != ' '; i++) {
+                            filename[c++] = entry[i];
+                        }
+                    }
+                    filename[c] = '\0';
+                }
+
+                // If directory, descend inside it
+                if (directory && !(entry[0] == '.' && (entry[1] == ' ' || entry[1] == '.'))) {
+                    unsigned int high = ((unsigned int)entry[21] << 8) | entry[20];
+                    unsigned int low  = ((unsigned int)entry[27] << 8) | entry[26];
+                    unsigned int subdir_cluster = (high << 16) | low;
+
+                    serial_puts("\nDescending into subdir cluster ");
+                    serial_puthex(subdir_cluster);
+                    serial_puts("\n");
+
+                    fat_list_files(subdir_cluster, file_list); // Recursively list files in the subdirectory
+                } else if (!directory) {
+                    // Append filename to the list
+                    append_to_file_list(file_list, filename);
+                }
+            }
+        }
+
+        unsigned int next = fat32[cluster] & 0x0FFFFFFF;
+        if (next >= 0x0FFFFFF8) {
+            break;
+        }
+        cluster = next;
+    }
+}

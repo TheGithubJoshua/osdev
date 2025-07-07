@@ -24,8 +24,15 @@
  */
 #define FAT_WORKBUF_SIZE  512 * 1024  // 512 KB buffer to hold the entire FAT
 
+// Define a node for the linked list
+typedef struct file_list_node {
+    char filename[13]; // 8 characters + 3 characters + null terminator
+    struct file_list_node *next;
+} FileListNode;
+
 int fat_getpartition(void);
 unsigned int fat_getcluster(char *fn);
 char *fat_readfile(unsigned int cluster);
 void convert_to_fat8_3(const char *input, char fn[11]);
 unsigned int fat_getcluster_recursive(char *path);
+FileListNode* fat_list_all_files();
