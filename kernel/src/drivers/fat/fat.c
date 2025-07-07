@@ -3,30 +3,11 @@
 #include "../ahci/ahci.h"
 #include "../../timer.h"
 #include "../../mm/pmm.h"
+#include "../../memory.h"
+//#include "../../util/string.h"
 #include "fat.h"
 #include "../../iodebug.h"
-
-// add memory compare, gcc has a built-in for that, clang needs implementation
-#ifdef __clang__
-static int memcmp(void *s1, void *s2, int n)
-{
-    unsigned char *a=s1,*b=s2;
-    while(n-->0){ if(*a!=*b) { return *a-*b; } a++; b++; }
-    return 0;
-}
-#else
-#define memcmp __builtin_memcmp
-#endif
-
-static void *memset(void *s, int c, size_t n) {
-    uint8_t *p = (uint8_t *)s;
-
-    for (size_t i = 0; i < n; i++) {
-        p[i] = (uint8_t)c;
-    }
-
-    return s;
-}
+#include <stdint.h>
 
 // get the end of bss segment from linker
 extern unsigned char _end;
@@ -61,7 +42,7 @@ typedef struct {
 } __attribute__((packed)) bpb_t;
 
 // directory entry structure
-typedef struct {
+/*typedef struct {
     char            name[8];
     char            ext[3];
     char            attr[9];
@@ -70,6 +51,22 @@ typedef struct {
     unsigned short  cl;
     unsigned int    size;
 } __attribute__((packed)) fatdir_t;
+I forgor i already had one*/
+
+typedef struct {
+    uint8_t name[11];
+    uint8_t attr[9]; // possible attributes [ READ_ONLY=0x01 HIDDEN=0x02 SYSTEM=0x04 VOLUME_ID=0x08 DIRECTORY=0x10 ARCHIVE=0x20 LFN=READ_ONLY|HIDDEN|SYSTEM|VOLUME_ID ]
+    uint8_t reserved;
+    uint8_t creation_time_hundredths; // actually in hundredths of a second
+    uint16_t creation_time; // time the file was created at
+    uint16_t creation_date; // date the file was created on
+    uint16_t last_accessed_date; // date the file was last accessed on
+    uint16_t cluster_high; // high 16 bits of cluster number (always 0 for FAT12 and 16)
+    uint16_t last_modified_time; // time the file was last modified at
+    uint16_t last_modified_date; // date the file was last modified on
+    uint16_t cluster_low; // low 16 bits of cluster number
+    uint32_t size; // size of the file in bytes
+} __attribute__((packed)) fat_dir_entry_t;
 
 static unsigned char fat_workbuf[FAT_WORKBUF_SIZE];
 
@@ -176,8 +173,6 @@ unsigned int fat_getcluster(char *fn)
 
     unsigned char t[FAT_WORKBUF_SIZE];
 
-    // 1) Compute FirstDataSector = partitionlba + bpb->rsc + (bpb->nf * sectors_per_FAT)
-    //    In FAT32, “sectors_per_FAT” is bpb->spf32, and “number_of_FATs” is bpb->nf.
     unsigned int first_data_sector = 
           partitionlba
         + bpb->rsc
@@ -185,30 +180,17 @@ unsigned int fat_getcluster(char *fn)
 
     serial_puts("FirstDataSector: "); serial_puthex(first_data_sector); serial_puts("\n");
 
-    // 2) Root directory’s first cluster is bpb->rc
     unsigned int root_cluster = bpb->rc;
     serial_puts("Root directory start cluster: "); serial_puthex(root_cluster); serial_puts("\n");
 
-    // 3) Load the first FAT into fat_workbuf so we can follow cluster chains.
-    //    The first FAT starts at LBA = partitionlba + bpb->rsc, and is bpb->spf32 sectors long.
     unsigned int fat_lba = partitionlba + bpb->rsc;
     unsigned int fat_sectors = bpb->spf32;
     if (!ahci_readblock(fat_lba, t, fat_sectors)) {
         serial_puts("ERROR: Could not read FAT into memory\n");
         return 0;
     }
-    // Now fat_workbuf[0..4*max_clusters] contains the FAT32 table.
 
-    unsigned int *fat32 = (unsigned int *)t; 
-    // (Each cluster entry is 4 bytes; valid cluster numbers are < 0x0FFFFFF8.)
-
-    // 4) Walk the root directory’s cluster chain.  In each cluster:
-    //    - Compute the first sector of that cluster: FirstSectorOfCluster = first_data_sector + (cluster–2)*bpb->spc
-    //    - Read all bpb->spc sectors in that cluster
-    //    - In each sector, scan the 16 directory entries of 32 bytes each
-    //    - If entry[0] == 0x00, stop searching (end of directory)
-    //    - Skip deleted (0xE5) and LFN (attr & 0x0F == 0x0F) entries.
-    //    - Compare the 11-byte short name; if match, extract high+low cluster and return.
+    unsigned int *fat32 = (unsigned int *)t;
 
     unsigned int current_cluster = root_cluster;
     while (current_cluster < 0x0FFFFFF8) {
@@ -216,7 +198,6 @@ unsigned int fat_getcluster(char *fn)
               first_data_sector 
             + (current_cluster - 2) * bpb->spc;
 
-        // Scan each sector in this cluster
         for (unsigned int sec_off = 0; sec_off < bpb->spc; sec_off++) {
             unsigned char sector_buf[512];
             if (!ahci_readblock(first_sector_of_cluster + sec_off, sector_buf, 1)) {
@@ -224,39 +205,37 @@ unsigned int fat_getcluster(char *fn)
                 return 0;
             }
 
-            // Scan each 32-byte entry in this sector
             for (int offset = 0; offset < 512; offset += 32) {
                 unsigned char *entry = &sector_buf[offset];
 
-                // 4a) End of directory?
                 if (entry[0] == 0x00) {
-                    // No more entries in this directory at all
                     return 0;
                 }
-                // 4b) Deleted entry?
                 if (entry[0] == 0xE5) {
                     continue;
                 }
-                // 4c) Long File Name (LFN) entry?
                 if ((entry[11] & 0x0F) == 0x0F) {
                     continue;
                 }
+
+                bool directory = false;
+                if ((entry[11] & 0x10) == 0x10) {
+                    directory = true;
+                    serial_puts("Found a subdirectory!\n");
+                }
+
                 serial_puts("\nentry: ");
                 serial_puts((const char*)entry);
                 serial_puts("\nfn: ");
                 serial_puts(fn);
 
-
-                // 4d) Short-name slot. Compare its 11 bytes to fn[].
+                // Compare filename
                 if (memcmp(entry + 0, fn, 11) == 0) {
-                    // Found it.  Extract high and low cluster words.
-                    // In FAT32, the high word is at offset 20..21, low word at 26..27.
                     unsigned int high = ((unsigned int)entry[21] << 8) | entry[20];
-                    unsigned int low  = ((unsigned int)entry[27] << 8) | entry[26]; // can be inverted idfk
+                    unsigned int low  = ((unsigned int)entry[27] << 8) | entry[26];
                     unsigned int full_cluster = (high << 16) | low;
 
                     serial_puts("Found “"); 
-                    // Print the short‐name (for debug)
                     for (int c = 0; c < 8; c++) {
                         if (entry[c] != ' ') serial_putc(entry[c]);
                     }
@@ -271,26 +250,87 @@ unsigned int fat_getcluster(char *fn)
                     return full_cluster;
                 }
 
-                  serial_puts("Found file: ");
-                    for (int i = 0; i < 8 && entry[i] != ' '; i++) serial_putc(entry[i]);
-                    if (entry[8] != ' ') {
-                        serial_putc('.');
-                        for (int i = 8; i < 11 && entry[i] != ' '; i++) serial_putc(entry[i]);
-                    }
+                // If directory, descend inside it (but skip "." and "..")
+                if (directory && !(entry[0] == '.' && (entry[1] == ' ' || entry[1] == '.'))) {
+                    unsigned int high = ((unsigned int)entry[21] << 8) | entry[20];
+                    unsigned int low  = ((unsigned int)entry[27] << 8) | entry[26];
+                    unsigned int subdir_cluster = (high << 16) | low;
+
+                    serial_puts("Descending into subdir cluster ");
+                    serial_puthex(subdir_cluster);
                     serial_puts("\n");
+
+                    unsigned int sub_cluster = subdir_cluster;
+                    while (sub_cluster < 0x0FFFFFF8) {
+                        unsigned int sub_first_sector = 
+                            first_data_sector + (sub_cluster - 2) * bpb->spc;
+
+                        for (unsigned int sub_sec_off = 0; sub_sec_off < bpb->spc; sub_sec_off++) {
+                            unsigned char sub_sector_buf[512];
+                            if (!ahci_readblock(sub_first_sector + sub_sec_off, sub_sector_buf, 1)) {
+                                serial_puts("ERROR: Failed to read subdirectory sector\n");
+                                return 0;
+                            }
+
+                            for (int sub_offset = 0; sub_offset < 512; sub_offset += 32) {
+                                unsigned char *sub_entry = &sub_sector_buf[sub_offset];
+
+                                if (sub_entry[0] == 0x00) {
+                                    break; // end of this directory
+                                }
+                                if (sub_entry[0] == 0xE5) {
+                                    continue;
+                                }
+                                if ((sub_entry[11] & 0x0F) == 0x0F) {
+                                    continue;
+                                }
+
+                                // Compare filename inside subdir
+                                if (memcmp(sub_entry + 0, fn, 11) == 0) {
+                                    unsigned int shigh = ((unsigned int)sub_entry[21] << 8) | sub_entry[20];
+                                    unsigned int slow  = ((unsigned int)sub_entry[27] << 8) | sub_entry[26];
+                                    unsigned int found_cluster = (shigh << 16) | slow;
+
+                                    serial_puts("Found inside subdir: ");
+                                    for (int c = 0; c < 8; c++) {
+                                        if (sub_entry[c] != ' ') serial_putc(sub_entry[c]);
+                                    }
+                                    serial_puts(".");
+                                    for (int c = 0; c < 3; c++) {
+                                        if (sub_entry[8 + c] != ' ') serial_putc(sub_entry[8 + c]);
+                                    }
+                                    serial_puts(" at cluster ");
+                                    serial_puthex(found_cluster);
+                                    serial_puts("\n");
+
+                                    return found_cluster;
+                                }
+                            }
+                        }
+                        sub_cluster = fat32[sub_cluster] & 0x0FFFFFFF;
+                        if (sub_cluster >= 0x0FFFFFF8) break;
+                    }
+                }
+
+                // Debug print file found
+                serial_puts("Found file: ");
+                for (int i = 0; i < 8 && entry[i] != ' '; i++) serial_putc(entry[i]);
+                if (entry[8] != ' ') {
+                    serial_putc('.');
+                    for (int i = 8; i < 11 && entry[i] != ' '; i++) serial_putc(entry[i]);
+                }
+                serial_puts("\n");
             }
         }
 
-        // 5) Move to the next cluster in the chain (if any)
         unsigned int next = fat32[current_cluster] & 0x0FFFFFFF;
         if (next >= 0x0FFFFFF8) {
-            // Reached end‐of‐chain without finding the file
             break;
         }
         current_cluster = next;
     }
 
-    serial_puts("ERROR: file not found in root directory\n");
+    serial_puts("ERROR: file not found in root directory or subdirectories\n");
     return 0;
 }
 
@@ -457,27 +497,45 @@ char *fat_readfile(unsigned int cluster)
     return (char*)data;
 }
 
+/**
+ * Convert a filename to the 8.3 format used by FAT file systems.
+ * The output is stored in the provided `fn` array, which must be at least 11 bytes long.
+ */
 void convert_to_fat8_3(const char *input, char fn[11]) {
     // Initialize the output array with spaces
-    memset(fn, ' ', sizeof(fn));
-
+    memset(fn, ' ', 11);
+    
     // Variables to track positions in base name and extension
     int base_pos = 0;
-    int ext_pos = 9; // Start of extension (8.3 format has a space between base and extension)
-
+    int ext_pos = 8; // Start of extension in 8.3 format
+    bool in_extension = false;
+    
     while (*input) {
         if (*input == '.') {
             // If a dot is found, switch to the extension part
+            in_extension = true;
             input++;
             continue;
         }
-
-        if (base_pos < 8 && *input != ' ') {
-            fn[base_pos++] = *input;
-        } else if (ext_pos < 11) {
-            fn[ext_pos++] = *input;
+        
+        // Convert to uppercase for FAT compatibility
+        char c = (*input >= 'a' && *input <= 'z') ? (*input - 'a' + 'A') : *input;
+        
+        // Skip spaces and other invalid characters
+        if (c == ' ' || c < 32 || c > 126) {
+            input++;
+            continue;
         }
-
+        
+        if (!in_extension && base_pos < 8) {
+            // Writing to base name (first 8 characters)
+            fn[base_pos++] = c;
+        } else if (in_extension && ext_pos < 11) {
+            // Writing to extension (last 3 characters)
+            fn[ext_pos++] = c;
+        }
+        
         input++;
     }
 }
+

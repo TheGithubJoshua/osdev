@@ -58,7 +58,7 @@ void *laihost_map(size_t address, size_t count) {
 		return (void *)(address + get_phys_offset());
 	} else {
 		for (uint64_t offset = 0; offset < count; offset += 0x1000) {
-		    map_nvme_mmio(address + offset, address + offset); // no return value
+		    quickmap(address + offset, address + offset); // no return value
 		}
 		return (void *)address; // return the virtual address (assumes identity map)
 	}

@@ -417,15 +417,15 @@ bool ahci_readblock(uint64_t lba, unsigned char *buffer, unsigned int num) {
 void init_ahci(uint32_t abar) {
 	// get base address and map
 	uint64_t base_addr = (abar & 0xFFFFFFF0);
-	map_nvme_mmio(base_addr, base_addr);
+	quickmap(base_addr, base_addr);
 	// map random address bc ig it isn't
-	map_nvme_mmio(0x000000010000000B, 0x000000010000000B);
-	map_nvme_mmio(0x0000000100001027, 0x0000000100001027);
+	quickmap(0x000000010000000B, 0x000000010000000B);
+	quickmap(0x0000000100001027, 0x0000000100001027);
 
 	uint64_t base = 0x0000000000400000; // BAR address
 	uint64_t size = 0x00090000;         // 64KB (for example)
 	for (uint64_t offset = 0; offset < size; offset += 0x1000) {
-	    map_nvme_mmio(base + offset, base + offset);
+	    quickmap(base + offset, base + offset);
 	}
 	// map allat bc idk.
 
@@ -491,8 +491,11 @@ void init_ahci(uint32_t abar) {
     static const char fn[11] = {
         'T','E','S','T',' ',' ',' ',' ','T','X','T'
     };
+    static const char fn2[11] = {
+    	'S','U','B','D','I','R','~','1','T','X','T'
+	};
 
-unsigned int cluster = fat_getcluster((char*)fn);
+unsigned int cluster = fat_getcluster((char*)fn2);
 if (cluster) {
     // Now you can actually read the file. For example:
     char *filedata = fat_readfile(cluster);

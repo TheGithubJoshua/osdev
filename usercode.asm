@@ -3,7 +3,7 @@ extern loop
 
 section .data
 text: db "idk", 3, 0
-filename: db "test.txt", 8, 0 
+filename: db "hello.txt", 9, 0 
 
 section .text
 loop:

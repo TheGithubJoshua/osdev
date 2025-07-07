@@ -72,7 +72,7 @@ void nvme_send_command(uint8_t opcode, uint32_t nsid, void *data, uint64_t lba, 
 	if (submission_queue_tail == QUEUE_SIZE)
 		submission_queue_tail = 0;
 	// You should wait for completion here
-	map_nvme_mmio(cq_entry_addr, cq_entry_addr);
+	quickmap(cq_entry_addr, cq_entry_addr);
 	completion = (nvme_cq_entry_t *)cq_entry_addr;
 	completion_queue_head++;
 	nvme_write_reg(0x1000 + 3 * (4 << nvme_cap_strd), completion_queue_head);
@@ -157,12 +157,12 @@ void check_io_queues(nvme_queue_t *sq, nvme_queue_t *cq) {
 }
 
 void init_nvme() {
-	map_nvme_mmio(0x000000C000000000, 0x000000C000000000);
-	map_nvme_mmio(0x100C, 0x100C);
-	map_nvme_mmio(0x000000C0FFFFFFFF, 0x000000C0FFFFFFFF);
-	map_nvme_mmio(0x000000C100000000, 0x000000C100000000);
-	map_nvme_mmio(0x000000000000000C, 0x000000000000000C);
-	map_nvme_mmio(0x000000C000001004, 0x000000C000001004);
+	quickmap(0x000000C000000000, 0x000000C000000000);
+	quickmap(0x100C, 0x100C);
+	quickmap(0x000000C0FFFFFFFF, 0x000000C0FFFFFFFF);
+	quickmap(0x000000C100000000, 0x000000C100000000);
+	quickmap(0x000000000000000C, 0x000000000000000C);
+	quickmap(0x000000C000001004, 0x000000C000001004);
 
 	nvme_cap_strd = (nvme_base_addr >> 12) & 0xF;
 	uint32_t nvme_version_reg = nvme_read_reg(0x08);

@@ -244,7 +244,7 @@ void *elf_load_exec(Elf64_Ehdr *hdr) {
         if (end == start) end = start + PAGE_SIZE; // map at least one page
 
         for (uint64_t addr = start; addr < end; addr += PAGE_SIZE) {
-            map_nvme_mmio(addr, addr);
+            quickmap(addr, addr);
         }
 
     }
@@ -354,7 +354,7 @@ entry_t load_elf(void *file, bool exec) {
 uint64_t pml4_phys_addr = read_cr3();
 
 Elf64_Ehdr *ehdr = file;
-map_nvme_mmio(ehdr->e_entry, ehdr->e_entry);
+quickmap(ehdr->e_entry, ehdr->e_entry);
 
 serial_puts("\ne_version: ");
 serial_puthex(ehdr->e_version); 
@@ -443,7 +443,7 @@ for (int i = 0; i < ehdr->e_phnum; i++) {
 }
 
 if (entry != NULL) {
-	//map_nvme_mmio(0x0000000000403010,0x0000000000403010);
+	//quickmap(0x0000000000403010,0x0000000000403010);
 	//asm volatile ("jmp %[entry]" : : [entry] "r"((uint64_t)(uintptr_t)0xFFFF80007BC18000)); // Jump to the entry point
     //task_create_wrap(entry);
     //Elf64_Phdr *ph = elf_program_header(ehdr, i);
@@ -460,7 +460,7 @@ if (entry != NULL) {
     serial_puts("file: ");
     serial_puthex((uint64_t)file);
 }
-    //map_nvme_mmio(0x00000000000003F8, 0x00000000000003F8);
+    //quickmap(0x00000000000003F8, 0x00000000000003F8);
     if (exec) {
     entry();  // jump into the loaded ELF executable
 } else {

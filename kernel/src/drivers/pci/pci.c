@@ -71,7 +71,7 @@ uint8_t getProgIf(uint16_t bus, uint16_t device, uint16_t function) {
     return r0 & 0xFF; // Lower byte contains ProgIF
 }
 
-size_t strlen(const char *s) {
+static size_t strlen(const char *s) {
     size_t len = 0;
     while (s[len] != '\0') {
         ++len;
@@ -115,13 +115,13 @@ void pci_probe() {
                     device_type = "SATA Controller";
                     // i should check if the SATA controller is in IDE emulation mode or AHCI mode.
                     // but i wont.
-                    map_nvme_mmio(0x0000000081086028,0x0000000081086028);
-                    map_nvme_mmio(0x00000000FC011028,0x00000000FC011028);
+                    quickmap(0x0000000081086028,0x0000000081086028);
+                    quickmap(0x00000000FC011028,0x00000000FC011028);
                     /*uint64_t base = 0x0000000000400000; // BAR address
                     uint64_t size = 0x00010000;         // 64KB (for example)
 
                     for (uint64_t offset = 0; offset < size; offset += 0x1000) {
-                        map_nvme_mmio(base + offset, base + offset);
+                        quickmap(base + offset, base + offset);
                     }
                       */
                     // fix this mess
@@ -129,8 +129,8 @@ void pci_probe() {
                     bar_high = pci_read_dword(bus, slot, function, 0x28);;
                     //uint64_t bar_addr = ((uint64_t)bar_high << 32) | (bar_low & ~0xFULL);
                     //map_size(bar_addr, bar_addr, 999999);
-                    map_nvme_mmio(bar_high,bar_high);
-                    map_nvme_mmio(bar_low,bar_low);
+                    quickmap(bar_high,bar_high);
+                    quickmap(bar_low,bar_low);
                     // get irq line
                     uint8_t irq_line = laihost_pci_readb(69, bus, slot, function, 0x3C);
                     register_irq_handler(irq_line, sata_irq_handler);

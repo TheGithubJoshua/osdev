@@ -221,7 +221,7 @@ uint64_t read_cr3(void) {
     return cr3;
 }
 
-void map_nvme_mmio(uint64_t virtual_addr, uint64_t physical_addr) {
+void quickmap(uint64_t virtual_addr, uint64_t physical_addr) {
     uint64_t cr3 = read_cr3() + get_phys_offset(); // get current PML4 physical address
 
     // Flags: writable, no cache (cache disable)
@@ -236,7 +236,7 @@ void map_nvme_mmio(uint64_t virtual_addr, uint64_t physical_addr) {
 void map_size(uint64_t phys_addr, uint64_t virt_addr, uint64_t size) {
     // Loop over each page in size
     for (uint64_t offset = 0; offset < size; offset += PAGE_SIZE) {
-        map_nvme_mmio(phys_addr + offset, virt_addr + offset);
+        quickmap(phys_addr + offset, virt_addr + offset);
     }
 }
 
