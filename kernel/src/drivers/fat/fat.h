@@ -22,7 +22,11 @@
  * DEALINGS IN THE SOFTWARE.
  *
  */
+#include <stdint.h>
+
 #define FAT_WORKBUF_SIZE  512 * 1024  // 512 KB buffer to hold the entire FAT
+#define MAX_PARTS 100
+#define MAX_LENGTH 256
 
 // Define a node for the linked list
 typedef struct file_list_node {
@@ -31,8 +35,10 @@ typedef struct file_list_node {
 } FileListNode;
 
 int fat_getpartition(void);
-unsigned int fat_getcluster(char *fn);
+unsigned int fat_getcluster(char *fn, char parts[MAX_PARTS][MAX_LENGTH]);
 char *fat_readfile(unsigned int cluster);
 void convert_to_fat8_3(const char *input, char fn[11]);
 unsigned int fat_getcluster_recursive(char *path);
 FileListNode* fat_list_all_files();
+char* fat_read(const char input[MAX_LENGTH]);
+static inline uint64_t split_string(const char *str, const char delimiter, char parts[MAX_PARTS][256]);

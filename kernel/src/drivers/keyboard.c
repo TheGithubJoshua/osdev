@@ -219,26 +219,9 @@ void keyboard_handler() {
                        filename[i++] = *src++;
                    }
                    filename[i] = '\0';
+                   char *fd = fat_read(filename);
+                   flanterm_write(ft_ctx, fd, strlen(fd));
 
-                   char fn[11];
-                   convert_to_fat8_3(filename, fn);
-
-                   unsigned int cluster = fat_getcluster((char*)fn);
-                   if (cluster) {
-                       // Now you can actually read the file. For example:
-                       char *filedata = fat_readfile(cluster);
-                       if (filedata) {
-                           // Write file content to the terminal
-                           flanterm_write(ft_ctx, filedata, strlen(filedata));
-                           pfree(filedata, (FAT_WORKBUF_SIZE + PAGE_SIZE - 1) / PAGE_SIZE);
-                       } else {
-                           serial_puts("ERROR reading file into memory\n");
-                       }
-                   } else if (!cluster) {
-                       serial_puts("no cluster\n");
-                   } else {
-                       serial_puts("FAT partition not found???\n");
-                   }
             } else if (!strcmp(input_buffer, " ") || !strcmp(input_buffer, "\n")) { // nothing
             } else {
                 flanterm_write(ft_ctx, "\033[31m", 5);

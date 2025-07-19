@@ -494,36 +494,14 @@ void init_ahci(uint32_t abar) {
     static const char fn2[11] = {
     	'S','U','B','D','I','R','~','1','T','X','T'
 	};
-
-unsigned int cluster = fat_getcluster((char*)fn2);
-if (cluster) {
-    // Now you can actually read the file. For example:
-    char *filedata = fat_readfile(cluster);
-    if (filedata) {
-        serial_puts("FILE (as ASCII): ");
-        /*for (size_t i = 0; i < 5; i++) {
-            serial_puthex(filedata[i]); // print each byte in hex
-            serial_puts(" ");
-        }
-        serial_puts("\n");
-        */
-
-        for (size_t i = 0; i < 3000; i++) {
-            serial_putc(filedata[i]); // print each byte in char
-            //serial_puts(" ");
-        }
-        serial_puts("\n");
-
-        pfree(filedata, (FAT_WORKBUF_SIZE + PAGE_SIZE - 1) / PAGE_SIZE);
-    } else {
-        serial_puts("ERROR reading file into memory\n");
-    }
-} else if (!cluster) {
-    serial_puts("die\n");
-} else {
-    serial_puts("FAT partition not found???\n");
-}
-
+	char *fd = fat_read("subdir/subdir2/abc.txt");
+	serial_puts("filedata.: ");
+	for (size_t i = 0; i < 20; i++) {
+	    serial_putc(fd[i]); // print each byte in hex
+	    //serial_puts(" ");
+	}
+	serial_puts("\n");
+	
 }
 
 	    //unsigned char buf[512];

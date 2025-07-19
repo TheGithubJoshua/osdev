@@ -476,23 +476,16 @@ if (entry != NULL) {
 }
 
 void load_elf_from_disk(const char fn[11]) {
-if (fat_getpartition()) {
-unsigned int cluster = fat_getcluster((char*)fn);
-if (cluster) {
-    // Now you can actually read the file. For example:
-    char *filedata = fat_readfile(cluster);
-    if (filedata) { load_elf(filedata, true); }
-} else {
-    serial_puts("loading ELF from disk failed due to FAT error!");
-}
-}
+
 task_exit();
 }
 
 // demo of loading elf from disk
 void load_module_from_disk() {
-	static const char fn[11] = { 'M','O','D','U','L','E',' ',' ',' ',' ',' ' };
-	load_elf_from_disk(fn);
+	const char *fn = "module";
+	char *fd = fat_read(fn);
+	load_elf(fd, true);
+	task_exit();
 }
 
 uint64_t get_size_of_elf() {
