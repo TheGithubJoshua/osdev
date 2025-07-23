@@ -2,6 +2,7 @@
 #include "../drivers/fat/fat.h"
 #include "../memory.h"
 #include "../util/fb.h"
+#include "../fs/fs.h"
 #include "../thread/thread.h"
 #include "syscall.h"
 
@@ -12,6 +13,19 @@ void init_syscall() {
 	task_exit();
 }
 
+char* path;
+int open_flags;
+mode_t mode;
+int fuckyou;
+
+void openfile() {
+    // open
+    serial_puts("path(syscall): ");
+    serial_puts(path);
+    fuckyou = open(path, open_flags, mode);
+    task_exit();
+}
+
 cpu_status_t* syscall_handler(cpu_status_t* regs) {
     serial_puts("\ngot syscall: ");
     serial_puthex(regs->rax);
@@ -20,16 +34,27 @@ cpu_status_t* syscall_handler(cpu_status_t* regs) {
     switch (regs->rax) {
         case 0:
             // read
-            serial_puts("not implemented!");
+            int fd = regs->rdi; // file descriptor
+            char* buf = (char*)regs->rsi; // buffer to read into
+            size_t count = regs->rdx; // number of bytes to read
+            read(fd, buf, count);
+            regs->rax = count; // number of bytes read
             break;
         case 1:
             // write
             break;
         case 2:
-            // open
+            open_flags = regs->rsi; // flags for opening
+            mode = (mode_t)regs->rdx; // mode for opening
+            path = (char*)regs->rdi; // path to file
+            create_task(openfile);
+            yield();
+            regs->rax = fuckyou;
             break;
         case 3:
             // close
+            fd = regs->rdi; // file descriptor to close
+            close(fd);
             break;
         case 4:
             // map memory

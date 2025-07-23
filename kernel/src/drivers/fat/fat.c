@@ -4,6 +4,7 @@
 #include "../../timer.h"
 #include "../../mm/pmm.h"
 #include "../../memory.h"
+#include "../../fs/fs.h"
 //#include "../../util/string.h"
 #include "fat.h"
 #include "../../iodebug.h"
@@ -53,23 +54,25 @@ typedef struct {
 I forgor i already had one*/
 
 typedef struct {
-    uint8_t name[11];
-    uint8_t attr[9]; // possible attributes [ READ_ONLY=0x01 HIDDEN=0x02 SYSTEM=0x04 VOLUME_ID=0x08 DIRECTORY=0x10 ARCHIVE=0x20 LFN=READ_ONLY|HIDDEN|SYSTEM|VOLUME_ID ]
-    uint8_t reserved;
-    uint8_t creation_time_hundredths; // actually in hundredths of a second
-    uint16_t creation_time; // time the file was created at
-    uint16_t creation_date; // date the file was created on
-    uint16_t last_accessed_date; // date the file was last accessed on
-    uint16_t cluster_high; // high 16 bits of cluster number (always 0 for FAT12 and 16)
-    uint16_t last_modified_time; // time the file was last modified at
-    uint16_t last_modified_date; // date the file was last modified on
-    uint16_t cluster_low; // low 16 bits of cluster number
-    uint32_t size; // size of the file in bytes
-} __attribute__((packed)) fat_dir_entry_t;
+    char name[13];         // 8.3 filename (null-terminated)
+    unsigned int cluster;
+} DirLookupEntry;
+
+DirLookupEntry dir_lookup[MAX_DIR_LOOKUP];
+int dir_lookup_count = 0;
+
+static inline int strcmp(const char *s1, const char *s2) {
+    while (*s1 && (*s1 == *s2)) {
+        s1++;
+        s2++;
+    }
+    return (unsigned char)*s1 - (unsigned char)*s2;
+}
 
 static unsigned char fat_workbuf[FAT_WORKBUF_SIZE];
 
 static bpb_t *bpb;
+fat_dir_entry_t *dir_entry;
 
 /**
  * Get the starting LBA address of the first partition
@@ -198,8 +201,10 @@ unsigned int fat_read_entry(unsigned int cluster) {
 /**
  * Read a file into memory
  */
-char *fat_readfile(unsigned int cluster)
+char *fat_readfile(unsigned int cluster, uint32_t *size)
 {
+    *size = dir_entry->size;
+
     serial_puts("\n(bpb->spf16 ? bpb->spf16 : bpb->spf32)");
     serial_puthex((bpb->spf16 ? bpb->spf16 : bpb->spf32));
 
@@ -318,7 +323,7 @@ char *fat_readfile(unsigned int cluster)
     }
 
     cluster = next_cluster;
-}
+} 
     return (char*)data;
 }
 
@@ -408,6 +413,28 @@ void append_to_file_list(FileListNode **head, const char *filename) {
     }
 }
 
+unsigned int get_cluster_for_dir(const char *name) {
+    for (int i = 0; i < dir_lookup_count; i++) {
+        if (strcmp(name, dir_lookup[i].name) == 0) {
+            return dir_lookup[i].cluster;
+        }
+    }
+    return 0; // Not found
+}
+
+FileListNode* list_files(const char* name) {
+        FileListNode *file_list = NULL;
+        FileListNode *file_list2 = NULL;
+        unsigned int root_cluster = bpb->rc;
+        fat_list_files(root_cluster, &file_list2);
+        unsigned int cluster = get_cluster_for_dir(name);  // Must match the 8.3 name format
+        if (cluster) {
+           fat_list_files(cluster, &file_list);
+           return file_list;
+    }
+    return file_list;
+    }
+
 /**
  * List all files in the root directory and its subdirectories and return the list
  */
@@ -494,11 +521,37 @@ void fat_list_files(unsigned int cluster, FileListNode **file_list) {
                     serial_puthex(subdir_cluster);
                     serial_puts("\n");
 
-                    fat_list_files(subdir_cluster, file_list); // Recursively list files in the subdirectory
+                    // Build directory name
+                    int c = 0;
+                    for (c = 0; c < 8 && entry[c] != ' '; c++) {
+                        filename[c] = entry[c];
+                    }
+                    if (entry[8] != ' ') {
+                        filename[c++] = '.';
+                        for (int i = 8; i < 11 && entry[i] != ' '; i++) {
+                            filename[c++] = entry[i];
+                        }
+                    }
+                    filename[c] = '\0';
+
+                    append_to_file_list(file_list, filename); // Optional
+
+                    // add to lookup array
+                    if (dir_lookup_count < MAX_DIR_LOOKUP) {
+                        strncpy(dir_lookup[dir_lookup_count].name, filename, 13);
+                        dir_lookup[dir_lookup_count].cluster = subdir_cluster;
+                        dir_lookup_count++;
+                    } else {
+                        serial_puts("WARNING: dir_lookup full!\n");
+                    }
+
+                    // Optional recursion
+                    // fat_list_files(subdir_cluster, file_list);
                 } else if (!directory) {
                     // Append filename to the list
                     append_to_file_list(file_list, filename);
                 }
+
             }
         }
 
@@ -551,7 +604,7 @@ unsigned int fat_getcluster(char *fn, char parts[MAX_PARTS][MAX_LENGTH]) {
                 unsigned char sector_buf[512];
                 if (!ahci_readblock(first_sector_of_cluster + sec_off, sector_buf, 1)) {
                     serial_puts("ERROR: Failed to read directory sector\n");
-                    return 0;
+                    return E_FILE_READ_ERROR;
                 }
 
                 for (int offset = 0; offset < 512; offset += 32) {
@@ -631,7 +684,7 @@ unsigned int fat_getcluster(char *fn, char parts[MAX_PARTS][MAX_LENGTH]) {
             unsigned char sector_buf[512];
             if (!ahci_readblock(first_sector_of_cluster + sec_off, sector_buf, 1)) {
                 serial_puts("ERROR: Failed to read directory sector\n");
-                return 0;
+                return E_FILE_READ_ERROR;
             }
 
             for (int offset = 0; offset < 512; offset += 32) {
@@ -653,6 +706,10 @@ unsigned int fat_getcluster(char *fn, char parts[MAX_PARTS][MAX_LENGTH]) {
                     unsigned int high = ((unsigned int)entry[21] << 8) | entry[20];
                     unsigned int low  = ((unsigned int)entry[27] << 8) | entry[26];
                     unsigned int full_cluster = (high << 16) | low;
+
+                    dir_entry = (fat_dir_entry_t*)&sector_buf[offset];
+                    serial_puts("fat file size: ");
+                    serial_puthex(dir_entry->size);
 
                     serial_puts("Found file2: ");
                     for (int i = 0; i < 8 && entry[i] != ' '; i++) serial_putc(entry[i]);
@@ -678,10 +735,10 @@ unsigned int fat_getcluster(char *fn, char parts[MAX_PARTS][MAX_LENGTH]) {
 
     // File not found in the specified path
     serial_puts("ERROR2: file not found\n");
-    return 0;
+    return E_FILE_NOT_FOUND;
 }
 
-static inline uint64_t split_string(const char *str, const char delimiter, char parts[MAX_PARTS][256]) {
+uint64_t split_string(const char *str, const char delimiter, char parts[MAX_PARTS][256]) {
     int part_count = 0;
     while (*str) {
         if (*str == delimiter) {
@@ -699,7 +756,8 @@ static inline uint64_t split_string(const char *str, const char delimiter, char 
     return part_count;
 }
 
-char* fat_read(const char input[MAX_LENGTH]) {
+
+char* fat_read(const char input[MAX_LENGTH], uint32_t file_size) {
     // parse path
     char parts[MAX_PARTS][256];
     uint64_t part_count = split_string(input, '/', parts);
@@ -710,8 +768,7 @@ char* fat_read(const char input[MAX_LENGTH]) {
     // read
     unsigned int cluster = fat_getcluster(fn, parts);
     if (cluster) {
-        // Now you can actually read the file. For example:
-        char *filedata = fat_readfile(cluster);
+        char *filedata = fat_readfile(cluster, &file_size);
         if (filedata) {
             serial_puts("file from subdir successfully read!");
             return filedata;
@@ -724,4 +781,107 @@ char* fat_read(const char input[MAX_LENGTH]) {
         serial_puts("FAT partition not found???\n");
     }
     return NULL;
+}
+
+int fat_get_dir_entry(const char *filename, char parts[MAX_PARTS][256], fat_dir_entry_t *dir_entry) {
+    if (!bpb || !filename || !dir_entry) {
+        serial_puts("invalid args!");
+        return E_INVALID_ARG;
+    }
+
+    char fn[11];
+    convert_to_fat8_3((char*)filename, fn);
+    
+    unsigned char t[FAT_WORKBUF_SIZE];
+    unsigned int first_data_sector = partitionlba + bpb->rsc + (bpb->nf * bpb->spf32);
+    unsigned int root_cluster = bpb->rc;
+    unsigned int fat_lba = partitionlba + bpb->rsc;
+    unsigned int fat_sectors = bpb->spf32;
+    
+    if (!ahci_readblock(fat_lba, t, fat_sectors)) {
+        return E_FILE_READ_ERROR;
+    }
+    unsigned int *fat32 = (unsigned int *)t;
+
+    // Navigate through directory path
+    unsigned int current_cluster = root_cluster;
+    for (int part_index = 0; parts[part_index][0] != '\0' && part_index < MAX_PARTS - 1; part_index++) {
+        bool found_directory = false;
+        
+        while (current_cluster < 0x0FFFFFF8) {
+            unsigned int first_sector_of_cluster = first_data_sector + (current_cluster - 2) * bpb->spc;
+
+            for (unsigned int sec_off = 0; sec_off < bpb->spc; sec_off++) {
+                unsigned char sector_buf[512];
+                if (!ahci_readblock(first_sector_of_cluster + sec_off, sector_buf, 1)) {
+                    return E_FILE_READ_ERROR;
+                }
+
+                for (int offset = 0; offset < 512; offset += 32) {
+                    unsigned char *entry = &sector_buf[offset];
+
+                    if (entry[0] == 0x00) break;
+                    if (entry[0] == 0xE5) continue;
+                    if ((entry[11] & 0x0F) == 0x0F) continue;
+
+                    bool directory = (entry[11] & 0x10) == 0x10;
+                    char part_fn[11];
+                    convert_to_fat8_3(parts[part_index], part_fn);
+
+                    if (directory && !(entry[0] == '.' && (entry[1] == ' ' || entry[1] == '.')) 
+                        && memcmp(entry, part_fn, 11) == 0) {
+                        unsigned int high = ((unsigned int)entry[21] << 8) | entry[20];
+                        unsigned int low = ((unsigned int)entry[27] << 8) | entry[26];
+                        current_cluster = (high << 16) | low;
+                        found_directory = true;
+                        break;
+                    }
+                }
+                if (found_directory) break;
+            }
+
+            if (found_directory) break;
+            
+            unsigned int next = fat32[current_cluster] & 0x0FFFFFFF;
+            if (next >= 0x0FFFFFF8) break;
+            current_cluster = next;
+        }
+
+        if (!found_directory) {
+            return E_FILE_NOT_FOUND;
+        }
+    }
+
+    // Search for file in final directory
+    while (current_cluster < 0x0FFFFFF8) {
+        unsigned int first_sector_of_cluster = first_data_sector + (current_cluster - 2) * bpb->spc;
+        
+        for (unsigned int sec_off = 0; sec_off < bpb->spc; sec_off++) {
+            unsigned char sector_buf[512];
+            if (!ahci_readblock(first_sector_of_cluster + sec_off, sector_buf, 1)) {
+                return E_FILE_READ_ERROR;
+            }
+
+            for (int offset = 0; offset < 512; offset += 32) {
+                unsigned char *entry = &sector_buf[offset];
+                
+                if (entry[0] == 0x00) break;
+                if (entry[0] == 0xE5) continue;
+                if ((entry[11] & 0x0F) == 0x0F) continue;
+
+                if (memcmp(entry, fn, 11) == 0) {
+                    // Copy directory entry data
+                    serial_puts("size (from get_dir_entry): ");
+                    serial_puthex(dir_entry->size);
+                    memcpy(dir_entry, entry, sizeof(fat_dir_entry_t));
+                    return FILE_SUCCESS;
+                }
+            }
+        }
+
+        unsigned int next = fat32[current_cluster] & 0x0FFFFFFF;
+        if (next >= 0x0FFFFFF8) break;
+        current_cluster = next;
+    }
+    return E_FILE_NOT_FOUND;
 }

@@ -43,7 +43,7 @@ stack_top = virt_stack_addr + STACK_SIZE - 8;
 //tss_entry.io_bitmap_offset = sizeof(tss_entry);  // No I/O permission bitmap
 
 //void* phys_page = palloc(1, false); // allocate one page
-char *fd = fat_read(fn);
+char *fd = fat_read(fn, 0);
 entry_t elf = load_elf(fd, false);
 serial_puts("elf size: ");
 serial_puthex(elf_size);

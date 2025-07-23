@@ -483,7 +483,7 @@ task_exit();
 // demo of loading elf from disk
 void load_module_from_disk() {
 	const char *fn = "module";
-	char *fd = fat_read(fn);
+	char *fd = fat_read(fn, 0);
 	load_elf(fd, true);
 	task_exit();
 }

@@ -219,7 +219,7 @@ void keyboard_handler() {
                        filename[i++] = *src++;
                    }
                    filename[i] = '\0';
-                   char *fd = fat_read(filename);
+                   char *fd = fat_read(filename, 0);
                    flanterm_write(ft_ctx, fd, strlen(fd));
 
             } else if (!strcmp(input_buffer, " ") || !strcmp(input_buffer, "\n")) { // nothing

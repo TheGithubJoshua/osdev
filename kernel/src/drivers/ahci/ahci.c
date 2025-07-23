@@ -4,6 +4,7 @@
 #include "../../timer.h"
 #include "../../mm/pmm.h"
 #include "../fat/fat.h"
+#include "../../fs/fs.h"
 #include "../../util/fb.h"
 #include "../../memory.h"
 #include <stdint.h>
@@ -494,7 +495,7 @@ void init_ahci(uint32_t abar) {
     static const char fn2[11] = {
     	'S','U','B','D','I','R','~','1','T','X','T'
 	};
-	char *fd = fat_read("subdir/subdir2/abc.txt");
+	char *fd = fat_read("subdir/subdir2/abc.txt", 0);
 	serial_puts("filedata.: ");
 	for (size_t i = 0; i < 20; i++) {
 	    serial_putc(fd[i]); // print each byte in hex
@@ -504,9 +505,35 @@ void init_ahci(uint32_t abar) {
 	
 }
 
-	    //unsigned char buf[512];
-	    //ahci_readblock(0, buf, 1);
-	    //serial_puts(buf);
+char *path = "test.txt";
+int fd = open("test.txt", ACCESS_READ, 0);  // flags, mode
+if (fd < 0) {
+    serial_puts("open failed :(\n");
+    return;
+}
+
+char buf[70];
+int bytes_read = read(fd, buf, 69);
+if (bytes_read > 0) { 
+    buf[bytes_read] = '\0';  // Null terminate for serial_puts
+    serial_puts("read success!\n");
+    serial_puts("buf: ");
+    serial_puts(buf);
+} else if (bytes_read == 0) {
+    serial_puts("EOF reached\n");
+} else {
+    serial_puts("read failed :(\n");
+}
+close(fd);
+
+stat_t file_stat_t;
+stat("test.txt", &file_stat_t);
+serial_puts("size (from fstat): ");
+serial_puthex(file_stat_t.st_size);
+
+//unsigned char buf[512];
+//ahci_readblock(0, buf, 1);
+//serial_puts(buf);
 unsigned char d[512];
 serial_puts("testing readblock...\n");
 ahci_readblock(0, d, 1);
