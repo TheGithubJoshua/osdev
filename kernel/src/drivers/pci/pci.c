@@ -5,6 +5,7 @@
 #include "../../memory.h"
 #include "../../thread/thread.h"
 #include "../../interrupts/interrupts.h"
+#include "../../drivers/xhci/xhci.h"
 #include <lai/core.h>
 #include "../nvme/nvme.h"
 #include <stdbool.h>
@@ -126,7 +127,7 @@ void pci_probe() {
                       */
                     // fix this mess
                     bar_low = pci_read_dword(bus, slot, function, 0x24);
-                    bar_high = pci_read_dword(bus, slot, function, 0x28);;
+                    bar_high = pci_read_dword(bus, slot, function, 0x28);
                     //uint64_t bar_addr = ((uint64_t)bar_high << 32) | (bar_low & ~0xFULL);
                     //map_size(bar_addr, bar_addr, 999999);
                     quickmap(bar_high,bar_high);
@@ -145,10 +146,26 @@ void pci_probe() {
                     device_type = "Ethernet Controller";
                 } else if (class_id == 0x06 && subclass_id == 0x00) {
                     device_type = "Host Bridge";
-                } else if (class_id == 0x0C && subclass_id == 0x03) {
+                /*} else if (class_id == 0x0C && subclass_id == 0x03) {
                     device_type = "USB Controller";
+                    serial_puts("USB Controller prog_if: ");
+                    serial_puthex(prog_if);
+                    */
                 } else if (class_id == 0x04 && subclass_id == 0x01) {
                     device_type = "Audio Device";
+                } else if (class_id == 0x0C && subclass_id == 0x03 /*&& prog_if == 0x30*/) {
+                    device_type = "xHCI USB Controller";
+                    // trust me bro its xhci
+                    // im blaming qemu for this
+                    uint32_t bar_low = pci_read_dword(bus, slot, function, 0x10); 
+                    uint32_t bar_high = pci_read_dword(bus, slot, function, 0x14);
+                    uint64_t bar_addr = ((uint64_t)bar_high << 32) | (bar_low & ~0xFULL);
+                    serial_puts("bar_addr: ");
+                    serial_puthex(bar_addr);
+                    quickmap(bar_high,bar_high);
+                    quickmap(bar_low,bar_low);
+                    quickmap(bar_addr, bar_addr);
+                    xhci_init(bar_addr);
                 }
 
                 // Print PCI device info

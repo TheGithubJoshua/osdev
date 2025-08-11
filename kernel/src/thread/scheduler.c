@@ -7,6 +7,7 @@
 #include "../userspace/enter.h"
 #include "../syscall/syscall.h"
 #include "../drivers/ahci/ahci.h"
+#include "../drivers/xhci/xhci.h"
 #include "../memory.h"
 #include "../drivers/pci/pci.h"
 #include "../drivers/nvme/nvme.h"

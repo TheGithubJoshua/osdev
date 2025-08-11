@@ -68,6 +68,7 @@ run-uefi: ovmf/ovmf-code-x86_64.fd $(IMAGE_NAME).iso
 		-audiodev pa,id=speaker -machine pcspk-audiodev=speaker \
 		-drive file=nvme_disk.img,if=none,id=nvm \
 		-device nvme,serial=deadbeef,drive=nvm \
+		-device qemu-xhci,id=xhci \
 		-hda disk.img \
 		-boot d \
 		-serial stdio \
@@ -80,6 +81,7 @@ monitor-uefi: ovmf/ovmf-code-x86_64.fd $(IMAGE_NAME).iso
 		-drive if=pflash,unit=0,format=raw,file=ovmf/ovmf-code-x86_64.fd,readonly=on \
 		-cdrom $(IMAGE_NAME).iso \
 		-audiodev pa,id=speaker -machine pcspk-audiodev=speaker \
+		-device qemu-xhci,id=xhci \
 		-boot d \
 		-monitor stdio \
 		-gdb tcp::1234 \
@@ -99,6 +101,7 @@ debug-uefi: ovmf/ovmf-code-x86_64.fd $(IMAGE_NAME).iso
 		-serial stdio \
 		-drive file=nvme_disk.img,if=none,id=nvm \
 		-device nvme,serial=deadbeef,drive=nvm \
+	    -device qemu-xhci,id=xhci \
 		-hda disk.img \
 		$(QEMUFLAGS)
 
