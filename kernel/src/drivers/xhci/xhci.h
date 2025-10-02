@@ -69,6 +69,21 @@ typedef struct xhci_operational_regs_t {
     volatile xhci_port_register_set_t portsc[0];
 } __attribute__((packed)) xhci_operational_regs_t;
 
+typedef struct {
+    volatile uint32_t doorbell[256];  // Up to 256 doorbell registers, one per slot including 0 for command ring
+} __attribute__((packed)) xhci_doorbell_regs_t;
+
+typedef struct xhci_controller {
+    void **scratchpad_array; // Array of pointers to scratchpad buffers
+    volatile xhci_regs_t *cap_regs;           // pointer to Capability Registers
+    volatile xhci_operational_regs_t *op_regs; // pointer to Operational Registers
+    uint64_t *dcbaa; // Device Context Base Address Array
+    command_ring_t *cmd_ring; // Command Ring
+    xhci_doorbell_regs_t *doorbell_regs; // doorbell registers
+} xhci_controller_t;
+
 void xhci_reset_controller();
 void xhci_init(uint64_t mmio_base);
-void dcbaa_init();
+void dcbaa_init(uint32_t max_slots);
+void xhci_init_command_ring(xhci_controller_t* xhci);
+void xhci_run_stop(xhci_controller_t *xhci, bool run);

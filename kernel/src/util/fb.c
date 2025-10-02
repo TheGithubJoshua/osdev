@@ -67,4 +67,15 @@ void uint64_to_hex(uint16_t val, char *out) {
     out[15] = '\0'; // null-terminate
 }
 
+uint32_t* get_fb_addr() {
+  struct limine_framebuffer *fb = framebuffer_request.response->framebuffers[0];
+  uint32_t *fb_ptr = (uint32_t *)fb->address;
+  return fb_ptr;
+}
+
+uint64_t get_fb_size() {
+    struct limine_framebuffer *fb = framebuffer_request.response->framebuffers[0];
+    return fb->width*fb->height*fb->bpp;
+}
+
 

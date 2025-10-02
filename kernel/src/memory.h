@@ -1,6 +1,7 @@
 #include <stddef.h>
 #include <stdint.h>
 #include <stdbool.h>
+#include "util/fb.h"
 
 #define PAGE_PRESENT 0x1
 #define PAGE_WRITABLE 0x2
@@ -67,3 +68,4 @@ void map_size(uint64_t phys_addr, uint64_t virt_addr, uint64_t size);
 uint64_t read_cr3(void);
 pt_entry_t *get_pml4_table(uint64_t pml4_phys);
 int is_mapped(uint64_t virtual_addr);
+size_t strlenn(const char *s);

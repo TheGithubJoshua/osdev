@@ -44,3 +44,4 @@ void enter_userspace(const char *fn);
 void test_user_function();
 void demo_userland();
 uint64_t find_address(uint64_t elf_size);
+uint64_t get_userland_fb_addr();

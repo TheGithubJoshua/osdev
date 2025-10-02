@@ -4,6 +4,7 @@
 #include "../util/fb.h"
 #include "../fs/fs.h"
 #include "../thread/thread.h"
+#include "../userspace/enter.h"
 #include "syscall.h"
 
 extern void isr_stub_105(void);
@@ -83,7 +84,11 @@ cpu_status_t* syscall_handler(cpu_status_t* regs) {
         case 9:
             // exit current task
             task_exit();
-            break;   
+            break;
+        case 10:
+            // get fb usermode address
+            regs->rax = get_userland_fb_addr();
+            break;
         default:
             regs->rax = E_NO_SYSCALL;
             break;

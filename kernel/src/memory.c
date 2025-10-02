@@ -142,6 +142,14 @@ strncpy (s1, s2, n)
   return s;
 }
 
+size_t strlenn(const char *s) {
+    size_t len = 0;
+    while (s[len] != '\0') {
+        ++len;
+    }
+    return len;
+}
+
 pt_entry_t *get_pml4_table(uint64_t pml4_phys) {
     return (pt_entry_t *)pml4_phys;
 }

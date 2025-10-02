@@ -11,6 +11,7 @@ extern void jump_usermode();
 tss_entry_t tss_entry;
 uint64_t stack_top;
 uint64_t user_code_vaddr;
+uint64_t fb_virt;
 //gdtr_t gdtr;
 
 unsigned char loop[2] = { 0xEB, 0xFE };
@@ -71,6 +72,24 @@ for (uint64_t offset = 0; offset < elf_size; offset += PAGE_SIZE) {
 // Now it's safe to memcpy
 memcpy((void*)user_code_vaddr, (void*)elf, elf_size);
 
+// framebuffer setup
+uint64_t fb_phys = (uint64_t)get_fb_addr();
+uint64_t fb_size = get_fb_size(); // width * height * bpp
+
+fb_virt = (uint64_t)palloc((fb_size + PAGE_SIZE - 1) / PAGE_SIZE, false);
+
+for (uint64_t off = 0; off < fb_size; off += 0x1000) {
+    map_page(read_cr3(),
+             fb_virt + off,
+             fb_phys + off,
+             PAGE_PRESENT | PAGE_WRITABLE | PAGE_USER);
+}
+
+serial_puts("fb_phys, fb_size, fb_virt...");
+serial_puthex(fb_phys);
+serial_puthex(fb_size);
+serial_puthex(fb_virt);        
+
 //memcpy((void*)phys_page, loop, sizeof(loop));
 flanterm_write(flanterm_get_ctx(), "[KERNEL] Welcome to userland!\n", 30);
 flanterm_write(flanterm_get_ctx(), "\033[0m", 5);
@@ -111,4 +130,8 @@ uint64_t find_address(uint64_t elf_size) {
     }
 
     return 0; // no region found
+}
+
+uint64_t get_userland_fb_addr() {
+    return fb_virt;
 }
