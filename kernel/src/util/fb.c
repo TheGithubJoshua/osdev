@@ -75,7 +75,7 @@ uint32_t* get_fb_addr() {
 
 uint64_t get_fb_size() {
     struct limine_framebuffer *fb = framebuffer_request.response->framebuffers[0];
-    return fb->width*fb->height*fb->bpp;
+    return fb->width * fb->height * (fb->bpp / 8);
 }
 
 

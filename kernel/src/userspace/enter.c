@@ -73,10 +73,11 @@ for (uint64_t offset = 0; offset < elf_size; offset += PAGE_SIZE) {
 memcpy((void*)user_code_vaddr, (void*)elf, elf_size);
 
 // framebuffer setup
-uint64_t fb_phys = (uint64_t)get_fb_addr();
+uint64_t fb_phys = (uint64_t)get_fb_addr() - get_phys_offset();
 uint64_t fb_size = get_fb_size(); // width * height * bpp
 
-fb_virt = (uint64_t)palloc((fb_size + PAGE_SIZE - 1) / PAGE_SIZE, false);
+//fb_virt = (uint64_t)palloc((fb_size + PAGE_SIZE - 1) / PAGE_SIZE, false);
+fb_virt = 0xFB0000; 
 
 for (uint64_t off = 0; off < fb_size; off += 0x1000) {
     map_page(read_cr3(),

@@ -266,7 +266,7 @@ void initialise_multitasking(void) {
 }
     //create_task(init_nvme);
     //create_task(init_ahci);
-    create_task(load_module_from_disk);
+    //create_task(load_module_from_disk);
     create_task(init_syscall);
     create_task(demo_userland); // enter the userland.
 

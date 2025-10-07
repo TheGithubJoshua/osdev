@@ -41,7 +41,24 @@ loop:
    mov rax, 3           ; close syscall (you may need to check your syscall numbers)
    mov rdi, r8          ; file descriptor to close
    int 0x69
-   
+
+   ; get framebuffer address
+   xor rax, rax
+   mov rax, 10
+   int 0x69          ; rax = framebuffer pointer
+
+   ; make screen black
+   mov rdi, rax
+   mov rcx, rbx ; fb size saved in rbx
+   shr rcx, 3        ; rcx = number of qwords
+   xor rax, rax      ; black color
+
+loop_start:
+    mov [rdi], rax
+    add rdi, 8
+    dec rcx
+    jnz loop_start
+
    ; exit cleanly
    mov rax, 9           ; exit syscall
    int 0x69

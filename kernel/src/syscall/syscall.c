@@ -88,6 +88,7 @@ cpu_status_t* syscall_handler(cpu_status_t* regs) {
         case 10:
             // get fb usermode address
             regs->rax = get_userland_fb_addr();
+            regs->rbx = get_fb_size();
             break;
         default:
             regs->rax = E_NO_SYSCALL;
