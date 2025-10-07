@@ -7,6 +7,7 @@
 #include "../drivers/fat/fat.h"
 #include "../mm/pmm.h"
 #include "../iodebug.h"
+#include "buffer/buffer.h"
 #include "cmos/rtc.h"
 #include "flanterm/flanterm.h"
 #include "keyboard.h"
@@ -135,6 +136,7 @@ unsigned char kb_us_shifted[128] =
 
 /* Handles the keyboard interrupt */
 void keyboard_handler() {
+    linebuf_t* in = fetch_linebuffer();
     unsigned char scancode;
 
     /* Read from the keyboard's data buffer */
@@ -169,11 +171,14 @@ void keyboard_handler() {
         if (!ft_ctx) return;
         flanterm_write(ft_ctx, buf, 1);
 
-        if (buf[0] != '\0') {
+        if ((buf[0] != '\0') & buf[0] != '\b') {
             // Add character to buffer if it's not a null character
+            lb_append(in, buf[0]);
             if (buffer_index < BUFFER_SIZE - 1) {
                 input_buffer[buffer_index++] = buf[0];
             }
+        } else if (buf[0] == '\b') {
+          lb_pop_back(in);
         }
 
         // temporary 'shell'

@@ -2,6 +2,7 @@
 #include "../mm/pmm.h"
 #include "../util/fb.h"
 #include "../elf/elf.h"
+#include "../buffer/buffer.h"
 #include "../drivers/fat/fat.h"
 #include "../iodebug.h"
 #include "enter.h"
@@ -89,7 +90,7 @@ for (uint64_t off = 0; off < fb_size; off += 0x1000) {
 serial_puts("fb_phys, fb_size, fb_virt...");
 serial_puthex(fb_phys);
 serial_puthex(fb_size);
-serial_puthex(fb_virt);        
+serial_puthex(fb_virt);
 
 //memcpy((void*)phys_page, loop, sizeof(loop));
 flanterm_write(flanterm_get_ctx(), "[KERNEL] Welcome to userland!\n", 30);
@@ -99,7 +100,7 @@ jump_usermode();
 }
 
 void demo_userland() {
-    char *fn = "usercode";
+    char *fn = "shell000";
     enter_userspace(fn);
 }
 

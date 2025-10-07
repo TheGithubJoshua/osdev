@@ -3,6 +3,8 @@
 #include "../memory.h"
 #include "../util/fb.h"
 #include "../fs/fs.h"
+#include "../userspace/enter.h"
+#include "../buffer/buffer.h"
 #include "../thread/thread.h"
 #include "../userspace/enter.h"
 #include "syscall.h"
@@ -89,6 +91,11 @@ cpu_status_t* syscall_handler(cpu_status_t* regs) {
             // get fb usermode address
             regs->rax = get_userland_fb_addr();
             regs->rbx = get_fb_size();
+            break;
+        case 11:
+            // read first char from read-only terminal buffer (lb_read)
+            linebuf_t* in = fetch_linebuffer();
+            regs->rax = lb_read(in);
             break;
         default:
             regs->rax = E_NO_SYSCALL;

@@ -10,6 +10,7 @@
 #include "acpi/acpi.h"
 #include "lai/include/lai/core.h"
 #include "mm/pmm.h"
+#include "buffer/buffer.h"
 #include "timer.h"
 #include "util/fb.h"
 #include "memory.h"
@@ -559,6 +560,7 @@ uintptr_t ioapic_base = get_ioapic_addr() + get_phys_offset(); // or mapped addr
 uint8_t apic_id = 0; // CPU's LAPIC ID
 ioapic_remap_all(ioapic_base, apic_id);
 ioapic_unmask_all(ioapic_base);
+setup_linebuffer();
 initialise_multitasking();
 // We're done, just hang...
     hcf();
