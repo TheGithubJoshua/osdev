@@ -171,18 +171,19 @@ void keyboard_handler() {
         if (!ft_ctx) return;
         flanterm_write(ft_ctx, buf, 1);
 
-        if ((buf[0] != '\0') & buf[0] != '\b') {
+        if (buf[0] != '\0') {
             // Add character to buffer if it's not a null character
             lb_append(in, buf[0]);
             if (buffer_index < BUFFER_SIZE - 1) {
                 input_buffer[buffer_index++] = buf[0];
             }
-        } else if (buf[0] == '\b') {
+          }
+       /* if (buf[0] == '\b') {
           lb_pop_back(in);
-        }
+        }*/
 
         // temporary 'shell'
-        if (buffer_index > 0 && input_buffer[buffer_index - 1] == '\n') {
+        /*if (buffer_index > 0 && input_buffer[buffer_index - 1] == '\n') {
             input_buffer[buffer_index] = '\0'; // Null-terminate the string
             buffer_index = 0; // Reset the buffer index
 
@@ -234,7 +235,7 @@ void keyboard_handler() {
                 flanterm_write(ft_ctx, input_buffer, strlen(input_buffer));
                 flanterm_write(ft_ctx, "\033[0m", 5);
             }
-    }
+    }*/
         // special keys
         switch (scancode) {
         case 0x48:
