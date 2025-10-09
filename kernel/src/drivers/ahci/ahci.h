@@ -335,3 +335,4 @@ void init_ahci(uint32_t abar);
 bool ahci_read(HBA_PORT *port, uint32_t startl, uint32_t starth, uint32_t count, uint16_t *buf);
 bool ahci_readblock(uint64_t lba, unsigned char *buffer, unsigned int num);
 int sd_readblock(unsigned int lba, unsigned char *buffer, unsigned int num);
+unsigned char ahci_status();

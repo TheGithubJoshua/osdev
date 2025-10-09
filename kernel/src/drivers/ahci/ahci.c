@@ -6,6 +6,7 @@
 #include "../fat/fat.h"
 #include "../../fs/fs.h"
 #include "../../util/fb.h"
+#include "../../ff16/source/ff.h"
 #include "../../memory.h"
 #include <stdint.h>
 
@@ -415,6 +416,11 @@ bool ahci_readblock(uint64_t lba, unsigned char *buffer, unsigned int num) {
     return true;
 }
 
+unsigned char ahci_status() {
+	// stub for now
+	return 1;
+}
+
 void init_ahci(uint32_t abar) {
 	// get base address and map
 	uint64_t base_addr = (abar & 0xFFFFFFF0);
@@ -537,4 +543,43 @@ serial_puthex(file_stat_t.st_size);
 unsigned char d[512];
 serial_puts("testing readblock...\n");
 ahci_readblock(0, d, 1);
+
+/* Read a text file and display it */
+
+FATFS FatFs;   /* Work area (filesystem object) for logical drive */
+
+    FIL fil;        /* File object */
+    char line[100]; /* Line buffer */
+    FRESULT fr;     /* FatFs return code */
+
+
+    /* Give a work area to the default drive */
+    FRESULT m = f_mount(&FatFs, "", 1);
+    serial_puts("f_mount result: ");
+    serial_puthex(m);
+
+    /* Open a text file */
+    fr = f_open(&fil, "test", FA_READ | FA_OPEN_EXISTING);
+    //if (fr) return (int)fr;
+    serial_puts("fr: ");
+    serial_puthex(fr);
+
+/*UINT br;
+char buf2[64];
+fr = f_read(&fil, buf2, sizeof(buf2)-1, &br);
+serial_puts("bytes read: ");
+serial_puthex(br);
+buf2[br] = 0;
+serial_puts(buf2);
+*/
+
+    /* Read every line and display it */
+    serial_puts("incoming test file: ");
+    while (f_gets(line, sizeof line, &fil)) {
+        serial_puts(line);
+    }
+
+    /* Close the file */
+    f_close(&fil);
+
 }
