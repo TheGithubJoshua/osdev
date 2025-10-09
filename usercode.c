@@ -126,6 +126,15 @@ static inline void sys_exit() {
     );
 }
 
+static inline void sys_acpi_sleep(uint64_t sleep_state) {
+    asm volatile(
+        "int $0x69"
+        :
+        : "a"((uint64_t)12), "D"(sleep_state)
+        : "memory"
+    );
+}
+
 static inline uint64_t sys_terminal_read(void) {
     uint64_t ret;
     asm volatile(
@@ -180,14 +189,13 @@ void memset(void *dst, int c, size_t n) {
 
 // Command implementations (placeholders)
 void cmd_help(const char *args) {
-    print("Available commands:\n");
+    print("Available built-in commands:\n");
     print("  help    - Show this help message\n");
     print("  echo    - Echo text to output\n");
     print("  clear   - Clear the screen\n");
     print("  ls      - List files\n");
     print("  cat     - Display file contents\n");
-    print("  pwd     - Print working directory\n");
-    print("  cd      - Change directory\n");
+    print("  halt      - Shutdown the system\n");
     print("  exit    - Exit the shell\n");
 }
 
@@ -208,38 +216,15 @@ void cmd_cat(const char *args) {
     print("not implemented\n");
 }
 
-void cmd_pwd(const char *args) {
-    print("not implemented\n");
-}
-
-void cmd_cd(const char *args) {
-    print("not implemented\n");
-}
-
 void cmd_exit(const char *args) {
     print("Goodbye!\n");
     sys_exit();
 }
 
-// Command structure [unused]
-typedef struct {
-    const char *name;
-    void (*func)(const char *args);
-    const char *desc;
-} command_t;
-
-// Command array
-command_t commands[] = {
-    {"help",  cmd_help,  "Show available commands"},
-    {"echo",  cmd_echo,  "Echo text to output"},
-    {"clear", cmd_clear, "Clear the screen"},
-    {"ls",    cmd_ls,    "List files"},
-    {"cat",   cmd_cat,   "Display file contents"},
-    {"pwd",   cmd_pwd,   "Print working directory"},
-    {"cd",    cmd_cd,    "Change directory"},
-    {"exit",  cmd_exit,  "Exit the shell"},
-    {0, 0, 0}  // Sentinel
-};
+void cmd_halt(const char *args) {
+    print("System is going down!\n");
+    sys_acpi_sleep(5);
+}
 
 // Parse and execute command
 void execute_command(char *cmdline) {
@@ -261,27 +246,14 @@ void execute_command(char *cmdline) {
     }
 
     // Search for command
-    for (int i = 0; commands[i].name; i++) {
-        const char *name = commands[i].name;
-        sys_serial_puthex((uint64_t)name);
-        sys_serial_puthex((uint64_t)cmdline);
-        sys_serial_puts(name);
-        /*if (!strcmp(cmdline, name)) {
-            commands[i].func(args);
-            return;
-        }*/
-        if (!strcmp(cmdline, "help")) { cmd_help(args); return; }
-        if (!strcmp(cmdline, "echo")) { cmd_echo(args); return; }
-        if (!strcmp(cmdline, "clear")) { cmd_clear(args); return; }
-        if (!strcmp(cmdline, "ls")) { cmd_ls(args); return; }
-        if (!strcmp(cmdline, "cat")) { cmd_cat(args); return; }
-        if (!strcmp(cmdline, "pwd")) { cmd_pwd(args); return; }
-        if (!strcmp(cmdline, "cd")) { cmd_cd(args); return; }
-        if (!strcmp(cmdline, "exit")) { cmd_exit(args); return; }
-        //print("Unknown command: "); print(cmdline); print("\n");
-    }
+    if (!strcmp(cmdline, "help")) { cmd_help(args); return; }
+    if (!strcmp(cmdline, "echo")) { cmd_echo(args); return; }
+    if (!strcmp(cmdline, "clear")) { cmd_clear(args); return; }
+    if (!strcmp(cmdline, "ls")) { cmd_ls(args); return; }
+    if (!strcmp(cmdline, "cat")) { cmd_cat(args); return; }
+    if (!strcmp(cmdline, "halt")) { cmd_halt(args); return; }
+    if (!strcmp(cmdline, "exit")) { cmd_exit(args); return; }
 
-    
     // Command not found
     print("Unknown command: ");
     print(cmdline);

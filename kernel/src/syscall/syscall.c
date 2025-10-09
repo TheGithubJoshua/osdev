@@ -1,8 +1,11 @@
 #include "../iodebug.h"
 #include "../drivers/fat/fat.h"
 #include "../memory.h"
+#include <lai/helpers/pm.h>
 #include "../util/fb.h"
+#include "../drivers/fat/fat.h"
 #include "../fs/fs.h"
+#include "../mm/pmm.h"
 #include "../userspace/enter.h"
 #include "../buffer/buffer.h"
 #include "../thread/thread.h"
@@ -10,6 +13,12 @@
 #include "syscall.h"
 
 extern void isr_stub_105(void);
+
+size_t strnlen(const char *s, size_t maxlen) {
+    size_t len = 0;
+    while (len < maxlen && s[len]) len++;
+    return len;
+}
 
 void init_syscall() {
 	set_idt_entry(0x69, isr_stub_105, 3);
@@ -96,6 +105,10 @@ cpu_status_t* syscall_handler(cpu_status_t* regs) {
             // read first char from read-only terminal buffer (lb_read)
             linebuf_t* in = fetch_linebuffer();
             regs->rax = lb_read(in);
+            break;
+        case 12:
+            // acpi sleep
+            lai_enter_sleep(regs->rdi);
             break;
         default:
             regs->rax = E_NO_SYSCALL;
