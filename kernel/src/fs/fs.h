@@ -48,6 +48,7 @@ typedef struct fd {
 	int pos;
 	size_t offset;
 	mode_t access;
+    void *private;  // store FIL*
 } fd_t;
 
 typedef struct {

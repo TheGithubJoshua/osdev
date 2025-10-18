@@ -3,9 +3,12 @@
 #include "../memory.h"
 #include <lai/helpers/pm.h>
 #include "../util/fb.h"
+#include "../timer.h"
+#include "../ff16/source/ff.h"
 #include "../drivers/fat/fat.h"
 #include "../fs/fs.h"
 #include "../mm/pmm.h"
+#include "../drivers/ahci/ahci.h"
 #include "../userspace/enter.h"
 #include "../buffer/buffer.h"
 #include "../thread/thread.h"
@@ -23,6 +26,22 @@ size_t strnlen(const char *s, size_t maxlen) {
 void init_syscall() {
 	set_idt_entry(0x69, isr_stub_105, 3);
 	task_exit();
+}
+
+/* copy_from_user – copy `len` bytes from a user‑mode pointer to kernel space.
+ * Returns the kernel virtual address of the allocated buffer (0 on failure). */
+// todo: security
+static inline uint64_t copy_from_user(const void *src, size_t len)
+{
+    /* Allocate whole pages that can hold `len` bytes.  */
+    void *k_mem = palloc((len + PAGE_SIZE - 1) / PAGE_SIZE, true);
+    if (!k_mem)                 /* allocation failed */
+        return 0;
+
+    memcpy(k_mem, src, len);    /* copy the user data */
+
+    /* Convert the kernel pointer to a uint64_t before returning. */
+    return (uint64_t)(uintptr_t)k_mem;
 }
 
 char* path;
@@ -56,12 +75,15 @@ cpu_status_t* syscall_handler(cpu_status_t* regs) {
             // write
             break;
         case 2:
+            // open
             open_flags = regs->rsi; // flags for opening
             mode = (mode_t)regs->rdx; // mode for opening
-            path = (char*)regs->rdi; // path to file
+            path = (char*)copy_from_user((const void*)regs->rdi, 12); // path to file
+            //open(path, open_flags, mode);
             create_task(openfile);
             yield();
             regs->rax = fuckyou;
+            pfree((void*)path, (12 + PAGE_SIZE - 1) / PAGE_SIZE);
             break;
         case 3:
             // close

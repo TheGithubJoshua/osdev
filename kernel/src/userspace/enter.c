@@ -1,5 +1,6 @@
 #include "memory.h"
 #include "../mm/pmm.h"
+#include "../ff16/source/ff.h"
 #include "../util/fb.h"
 #include "../elf/elf.h"
 #include "../buffer/buffer.h"
@@ -43,9 +44,48 @@ map_page(read_cr3(), virt_stack_addr + 0x4000, stack_base_addr + 0x4000, PAGE_PR
 stack_top = virt_stack_addr + STACK_SIZE - 8;
 //tss_entry.rsp0 = stack_base_addr + STACK_SIZE;  // Set the kernel stack pointer
 //tss_entry.io_bitmap_offset = sizeof(tss_entry);  // No I/O permission bitmap
-
+//char *fd = palloc((5000 + PAGE_SIZE - 1) / PAGE_SIZE, true);
 //void* phys_page = palloc(1, false); // allocate one page
-char *fd = fat_read(fn, 0);
+FIL fil;
+FRESULT fr;
+UINT br;
+FSIZE_t size;
+char *fd;
+
+/* Open the file */
+fr = f_open(&fil, fn, FA_READ);
+if (fr != FR_OK) {
+    serial_puts("f_open failed\n");
+    serial_puthex(fr);
+    return;
+}
+
+/* Get file size */
+size = f_size(&fil);
+
+/* Allocate buffer for the file */
+fd = palloc((size + PAGE_SIZE - 1) / PAGE_SIZE, true);
+if (!fd) {
+    serial_puts("palloc failed\n");
+    f_close(&fil);
+    return;
+}
+
+/* Read the entire file */
+fr = f_read(&fil, fd, size, &br);
+if (fr != FR_OK || br != size) {
+    serial_puts("f_read failed or incomplete\n");
+    serial_puthex(fr);
+    f_close(&fil);
+    return;
+}
+
+/* Close file */
+f_close(&fil);
+
+/* Now buf contains the entire file */
+serial_puts("File loaded into memory\n");
+//fd = fat_read(fn, 0);
 entry_t elf = load_elf(fd, false);
 serial_puts("elf size: ");
 serial_puthex(elf_size);

@@ -68,6 +68,7 @@ void main() {
 #ifndef LB_SIZE
 #define LB_SIZE 128
 #endif
+#define FA_READ             0x01
 
 typedef unsigned long uint64_t;
 typedef unsigned long size_t;
@@ -146,6 +147,55 @@ static inline uint64_t sys_terminal_read(void) {
     return ret;
 }
 
+/* return fd (or negative errno) */
+static inline long sys_open(const char *name, unsigned long flags, unsigned long mode) {
+    long ret;
+    asm volatile(
+        "mov %[num], %%rax\n\t"
+        "mov %[p],   %%rdi\n\t"
+        "mov %[f],   %%rsi\n\t"
+        "mov %[m],   %%rdx\n\t"
+        "int $0x69\n\t"
+        "mov %%rax, %[ret]\n\t"
+        : [ret] "=r"(ret)
+        : [num] "r"((unsigned long)2),
+          [p]   "r"(name),
+          [f]   "r"(flags),
+          [m]   "r"(mode)
+        : "rax", "rdi", "rsi", "rdx", "rcx", "r11", "memory"
+    );
+    return ret;
+}
+
+static inline void sys_close(int fd) {
+    asm volatile(
+        "int $0x69"
+        :
+        : "a"((uint64_t)3), "D"(fd)
+        : "memory"
+    );
+}
+
+/* return bytes read (or negative errno) */
+static inline long sys_read(int fd, char *buf, size_t size) {
+    long ret;
+    asm volatile(
+        "mov %[num], %%rax\n\t"
+        "mov %[p],   %%rdi\n\t"
+        "mov %[s],   %%rsi\n\t"
+        "mov %[d],   %%rdx\n\t"
+        "int $0x69\n\t"
+        "mov %%rax, %[ret]\n\t"
+        : [ret] "=r"(ret)
+        : [num] "r"((unsigned long)0),
+          [p]   "r"((uint64_t)fd),
+          [s]   "r"(buf),
+          [d]   "r"(size)
+        : "rax", "rdi", "rsi", "rdx", "rcx", "r11", "memory"
+    );
+    return ret;
+}
+
 // Utility functions
 size_t strlen(const char *s) {
     size_t len = 0;
@@ -213,7 +263,42 @@ void cmd_ls(const char *args) {
 }
 
 void cmd_cat(const char *args) {
-    print("not implemented\n");
+    if (!args) {
+        sys_serial_puts("cat: no filename\n");
+        return;
+    }
+
+    sys_serial_puts("catting file: ");
+    sys_serial_puts(args);
+
+    unsigned long flags = (unsigned long)FA_READ;
+    unsigned long mode = 0; /* if not used, pass 0 */
+
+    long fd = sys_open(args, flags, mode);
+    if (fd < 0) {
+        sys_serial_puts("open failed: ");
+        // print numeric error if you have helper, else just return
+        return;
+    }
+
+    char buf[256];
+    size_t want = sizeof(buf);
+
+    long got = sys_read((int)fd, buf, want);
+    if (got < 0) {
+        sys_serial_puts("read failed\n");
+        return;
+    }
+
+    /* ensure NUL for printing */
+    size_t n = (size_t)got;
+    if (n >= sizeof(buf)) n = sizeof(buf) - 1;
+    buf[n] = '\0';
+
+    sys_serial_puts("usermode read: ");
+    sys_serial_puts(buf);
+    print(buf);
+    sys_close((int)fd);
 }
 
 void cmd_exit(const char *args) {
@@ -232,11 +317,11 @@ void execute_command(char *cmdline) {
     while (*cmdline == ' ' || *cmdline == '\t') cmdline++;
     
     if (*cmdline == '\0') return;  // Empty command
-    
+
     // Find command name end
     char *cmd_end = cmdline;
     while (*cmd_end && *cmd_end != ' ' && *cmd_end != '\t') cmd_end++;
-    
+
     // Extract arguments
     char *args = cmd_end;
     if (*args) {

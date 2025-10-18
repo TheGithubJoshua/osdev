@@ -81,40 +81,69 @@ int read(int fd, char *buf, size_t count) {
 /* VFS implementation with proper error handling and structure */
 #include "fs.h"
 #include "../iodebug.h"
+#include "../mm/pmm.h"
 #include "../drivers/fat/fat.h"
+#include "../ff16/source/ff.h"
 #include "../errno.h"
 #include <stdint.h>
 
-fd_t file_descriptors[MAX_FILES];
+fd_t* file_descriptors[MAX_FILES];
 
-int allocate_fd() {
+int allocate_fd(void) {
     for (int i = 0; i < MAX_FILES; i++) {
-        if (!file_descriptors[i].is_open) {
-            file_descriptors[i].is_open = 1;
-            // Initialize fd structure
-            file_descriptors[i].device = 0;
-            file_descriptors[i].fs = 0;
-            file_descriptors[i].pos = 0;
-            file_descriptors[i].size = 0;
-            file_descriptors[i].access = 0;
+        // Check if slot is empty or not open
+        if (file_descriptors[i] == NULL || !file_descriptors[i]->is_open) {
+
+            // Allocate only if it doesn't already exist
+            if (file_descriptors[i] == NULL) {
+                file_descriptors[i] = palloc((sizeof(fd_t) + PAGE_SIZE - 1) / PAGE_SIZE, true);
+                if (!file_descriptors[i])
+                    return ENOMEM;
+            }
+
+            fd_t *fd = file_descriptors[i];
+            fd->is_open = 1;
+            fd->device = 0;
+            fd->fs = 0;
+            fd->pos = 0;
+            fd->size = 0;
+            fd->offset = 0;
+            fd->access = 0;
+
             return i;
         }
     }
+
     return E_TOO_MANY_FILES;
 }
 
+
 void release_fd(int fd) {
     if (fd >= 0 && fd < MAX_FILES) {
-        file_descriptors[fd].is_open = 0;
-        file_descriptors[fd].device = 0;
-        file_descriptors[fd].fs = 0;
-        file_descriptors[fd].pos = 0;
-        file_descriptors[fd].size = 0;
-        file_descriptors[fd].access = 0;
+        file_descriptors[fd]->is_open = 0;
+        file_descriptors[fd]->device = 0;
+        file_descriptors[fd]->fs = 0;
+        file_descriptors[fd]->pos = 0;
+        file_descriptors[fd]->size = 0;
+        file_descriptors[fd]->access = 0;
     }
 }
 
+FIL *f;
+FRESULT fr;
+FATFS *FatFs;
+static int fs_mounted = 0;
+
 int open(const char *path, int flags, mode_t mode) {
+    if (!fs_mounted) {
+    FatFs = palloc((sizeof(FATFS) + PAGE_SIZE - 1) / PAGE_SIZE, true);
+    FRESULT m = f_mount(FatFs, "", 1);
+    serial_puts("f_mount result(2): ");
+    serial_puthex(m);
+    fs_mounted = 1;
+}
+    f = palloc((sizeof(FIL) + PAGE_SIZE - 1) / PAGE_SIZE, true);
+
     if (!path) {
         return E_INVALID_ARG;
     }
@@ -124,34 +153,24 @@ int open(const char *path, int flags, mode_t mode) {
         return fd; // Return error code
     }
     
-    file_descriptors[fd].device = DEVICE_AHCI;
-    file_descriptors[fd].fs = FS_FAT;
-    file_descriptors[fd].access = mode;
+    file_descriptors[fd]->device = DEVICE_AHCI;
+    file_descriptors[fd]->fs = FS_FAT;
+    file_descriptors[fd]->access = mode;
     
-    if (file_descriptors[fd].fs == FS_FAT) {
-        // Parse path
-        char parts[MAX_PARTS][256];
-        uint64_t part_count = split_string((char*)path, '/', parts);
-        
-        if (part_count == 0) {
-            release_fd(fd);
-            return E_INVALID_PATH;
-        }
-        
-        serial_puts("parts: ");
-        serial_puts((const char*)parts[part_count - 1]);
-        
-        // Get file cluster
-        unsigned int cluster = fat_getcluster(0, parts);
-        
-        if (cluster == 0 || cluster == (unsigned int)E_FILE_READ_ERROR) {
-            release_fd(fd);
-            return E_FILE_NOT_FOUND;
-        }
-        
-        file_descriptors[fd].pos = cluster;
-        // TODO: Set file size from FAT directory entry
-        file_descriptors[fd].size = 0; // Placeholder
+    if (file_descriptors[fd]->fs == FS_FAT) {
+        fr = f_open(f, path, FA_READ);
+serial_puts("incoming fd: ");
+serial_puthex(fd);
+serial_puts("incoming fr: ");
+serial_puthex(fr);
+
+        file_descriptors[fd]->is_open = 1;
+        file_descriptors[fd]->device  = f->obj.fs->pdrv;      /* or whatever identifies the drive */
+        file_descriptors[fd]->size    = f->obj.objsize;
+        file_descriptors[fd]->pos     = f->fptr;
+        file_descriptors[fd]->offset  = 0;                    /* or logical offset within FS */
+        file_descriptors[fd]->access  = f->flag;              /* convert FatFs flags to mode_t bits */
+        file_descriptors[fd]->private = f;
         
         return fd;
     }
@@ -162,16 +181,17 @@ int open(const char *path, int flags, mode_t mode) {
 }
 
 int close(int fd) {
-    if (fd < 0 || fd >= MAX_FILES || !file_descriptors[fd].is_open) {
+    if (fd < 0 || fd >= MAX_FILES || !file_descriptors[fd]->is_open) {
         return E_INVALID_FD;
     }
     
     release_fd(fd);
+    pfree(&FatFs, (sizeof(FATFS) + PAGE_SIZE - 1) / PAGE_SIZE);
     return FILE_SUCCESS;
 }
 
 int read(int fd, char *buf, size_t count) {
-    if (fd < 0 || fd >= MAX_FILES || !file_descriptors[fd].is_open) {
+    if (fd < 0 || fd >= MAX_FILES || !file_descriptors[fd]->is_open) {
         return E_INVALID_FD;
     }
     
@@ -179,16 +199,20 @@ int read(int fd, char *buf, size_t count) {
         return E_INVALID_ARG;
     }
     
-    if (file_descriptors[fd].fs == FS_FAT) {
+    if (file_descriptors[fd]->fs == FS_FAT) {
         serial_puts("@@fsisfat");
         
-        if (file_descriptors[fd].pos == 0) {
+        if (file_descriptors[fd]->pos == 0) {
             serial_puts("@@filenotfound");
-            return E_FILE_NOT_FOUND;
+            //return E_FILE_NOT_FOUND;
         }
-        
+
+        FIL *fil = (FIL *)file_descriptors[fd]->private;
         uint32_t size = 0;
-        char *data = fat_readfile(file_descriptors[fd].pos, &size);
+        char data[100];
+        UINT br;
+        FRESULT fr = f_read(fil, buf, count, &br);
+
 
         if (!data) {
             return E_FILE_READ_ERROR;
@@ -197,22 +221,19 @@ int read(int fd, char *buf, size_t count) {
         size_t bytes_to_read = (size < count) ? (size_t)size : count;
 
         serial_puts("data buffer: ");
-        for (size_t i = 0; i < bytes_to_read; i++) {
-            serial_putc(data[i]);
-            buf[i] = data[i];
+        for (size_t i = 0; i < br; i++) {
+            serial_putc(buf[i]);
+            buf[i] = buf[i];
         }
         
-        // Don't null-terminate - that's application responsibility
-        // buf[count+1] = 0; // REMOVED - buffer overrun and not VFS responsibility
-        
-        return bytes_to_read;
+        return br;
     }
     
     return E_NOT_IMPLEMENTED;
 }
 
 off_t lseek(int fd, off_t offset, int whence) {
-    if (fd < 0 || fd >= MAX_FILES || !file_descriptors[fd].is_open) {
+    if (fd < 0 || fd >= MAX_FILES || !file_descriptors[fd]->is_open) {
         return E_INVALID_FD;
     }
     
@@ -223,10 +244,10 @@ off_t lseek(int fd, off_t offset, int whence) {
             new_pos = offset;
             break;
         case SEEK_CUR:
-            new_pos = file_descriptors[fd].pos + offset;
+            new_pos = file_descriptors[fd]->pos + offset;
             break;
         case SEEK_END:
-            new_pos = file_descriptors[fd].size + offset;
+            new_pos = file_descriptors[fd]->size + offset;
             break;
         default:
             return E_INVALID_ARG;
@@ -236,7 +257,7 @@ off_t lseek(int fd, off_t offset, int whence) {
         return E_INVALID_ARG;
     }
     
-    file_descriptors[fd].pos = new_pos;
+    file_descriptors[fd]->pos = new_pos;
     return new_pos;
 }
 
