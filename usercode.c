@@ -73,9 +73,12 @@ void main() {
 typedef unsigned long uint64_t;
 typedef unsigned long size_t;
 typedef unsigned char uint8_t;
+typedef unsigned short uint16_t;
 //typedef int bool;
 #define true 1
 #define false 0
+
+#define AM_DIR  0x10    /* Directory */
 
 // Syscall function for print
 static inline void sys_print(const void *buf, size_t len) {
@@ -167,6 +170,32 @@ static inline long sys_open(const char *name, unsigned long flags, unsigned long
     return ret;
 }
 
+
+/* File/directory information structure (FILINFO) */
+
+typedef struct {
+    unsigned int fsize;          /* File size (invalid for directory) */
+    uint16_t    fdate;          /* Date of file modification or directory creation */
+    uint16_t    ftime;          /* Time of file modification or directory creation */
+    uint8_t    fattrib;        /* Object attribute */
+    char   fname[12 + 1];  /* Object name */
+} FILINFO;
+
+static inline long sys_opendir(const char *name) {
+    long ret;
+    asm volatile(
+        "mov %[num], %%rax\n\t"
+        "mov %[p],   %%rdi\n\t"
+        "int $0x69\n\t"
+        "mov %%rax, %[ret]\n\t"
+        : [ret] "=r"(ret)
+        : [num] "r"((unsigned long)13),
+          [p]   "r"(name)
+        : "rax", "rdi", "rsi", "rdx", "rcx", "r11", "memory"
+    );
+    return ret;
+}
+
 static inline void sys_close(int fd) {
     asm volatile(
         "int $0x69"
@@ -192,6 +221,23 @@ static inline long sys_read(int fd, char *buf, size_t size) {
           [s]   "r"(buf),
           [d]   "r"(size)
         : "rax", "rdi", "rsi", "rdx", "rcx", "r11", "memory"
+    );
+    return ret;
+}
+
+static inline long sys_readdir(int fd, FILINFO* fno) {
+    long ret;
+    asm volatile(
+        "mov %[num], %%rax\n\t"
+        "mov %[p], %%rdi\n\t"
+        "mov %[f], %%rsi\n\t"
+        "int $0x69\n\t"
+        "mov %%rax, %[ret]\n\t"
+        : [ret] "=r"(ret)
+        : [num] "r"((unsigned long)14),
+          [p]   "r"((unsigned long)fd),
+          [f]   "r"((unsigned long)fno)
+        : "rax", "rdi", "rcx", "r11", "memory"
     );
     return ret;
 }
@@ -259,7 +305,43 @@ void cmd_clear(const char *args) {
 }
 
 void cmd_ls(const char *args) {
-    print("not implemented");
+    long dir_fd = sys_opendir(args);
+    if (dir_fd < 0) {
+        print("Failed to open ");
+        print(args);
+        print("\n");
+        return;
+    }
+
+    FILINFO fno;
+    long ret;
+    int nfile = 0, ndir = 0;
+
+    for (;;) {
+        ret = sys_readdir(dir_fd, &fno);
+        if (ret < 0 || fno.fname[0] == '\0') break;
+
+        if (fno.fattrib & AM_DIR) {
+            print("   <DIR>   ");
+            print(fno.fname);
+            print(" ");
+            ndir++;
+        } else {
+     //       print_u32(fno.fsize);
+    //        print(" ");
+            print(fno.fname);
+            print(" ");
+            nfile++;
+        }
+    }
+    
+    print("\n");
+    sys_close(dir_fd);
+
+    //print_u32(ndir);
+    //print(" dirs, ");
+    //print_u32(nfile);
+    //print(" files.\n");
 }
 
 void cmd_cat(const char *args) {
@@ -277,7 +359,6 @@ void cmd_cat(const char *args) {
     long fd = sys_open(args, flags, mode);
     if (fd < 0) {
         sys_serial_puts("open failed: ");
-        // print numeric error if you have helper, else just return
         return;
     }
 

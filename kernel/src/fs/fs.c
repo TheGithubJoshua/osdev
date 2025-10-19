@@ -83,7 +83,6 @@ int read(int fd, char *buf, size_t count) {
 #include "../iodebug.h"
 #include "../mm/pmm.h"
 #include "../drivers/fat/fat.h"
-#include "../ff16/source/ff.h"
 #include "../errno.h"
 #include <stdint.h>
 
@@ -177,6 +176,69 @@ serial_puthex(fr);
     
     // Other filesystems not implemented
     release_fd(fd);
+    return E_NOT_IMPLEMENTED;
+}
+
+DIR* d;
+
+int opendir(const char *path) {
+    if (!fs_mounted) {
+    FatFs = palloc((sizeof(FATFS) + PAGE_SIZE - 1) / PAGE_SIZE, true);
+    FRESULT m = f_mount(FatFs, "", 1);
+    serial_puts("f_mount result(2): ");
+    serial_puthex(m);
+    fs_mounted = 1;
+}
+    d = palloc((sizeof(DIR) + PAGE_SIZE - 1) / PAGE_SIZE, true);
+
+    if (!path) {
+        return E_INVALID_ARG;
+    }
+    
+    int fd = allocate_fd();
+    if (fd < 0) {
+        return fd; // Return error code
+    }
+    
+    file_descriptors[fd]->device = DEVICE_AHCI;
+    file_descriptors[fd]->fs = FS_FAT;
+    
+    if (file_descriptors[fd]->fs == FS_FAT) {
+        fr = f_opendir(d, path);
+serial_puts("incoming fd: ");
+serial_puthex(fd);
+serial_puts("incoming fr: ");
+serial_puthex(fr);
+
+        file_descriptors[fd]->is_open = 1;
+        file_descriptors[fd]->device  = d->obj.fs->pdrv;      /* or whatever identifies the drive */
+        file_descriptors[fd]->size    = d->obj.objsize;
+        file_descriptors[fd]->pos     = d->dptr;
+        file_descriptors[fd]->offset  = 0;                    /* or logical offset within FS */
+        file_descriptors[fd]->private = d;
+        
+        return fd;
+    }
+    
+    // Other filesystems not implemented
+    release_fd(fd);
+    return E_NOT_IMPLEMENTED;
+}
+
+int readdir(int fd, FILINFO* fno) {
+    if (fd < 0 || fd >= MAX_FILES || !file_descriptors[fd]->is_open) {
+        return E_INVALID_FD;
+    }
+    
+    if (file_descriptors[fd]->fs == FS_FAT) {
+        serial_puts("@@fsisfat");
+
+        DIR *d = (DIR *)file_descriptors[fd]->private;
+        FRESULT fr = f_readdir(d, fno);
+        
+        return fr;
+    }
+    
     return E_NOT_IMPLEMENTED;
 }
 

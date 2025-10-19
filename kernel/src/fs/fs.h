@@ -1,3 +1,5 @@
+#pragma once
+
 #define MAX_FILES 100
 #define E_FILE_NOT_FOUND -1
 #define E_FILE_READ_ERROR 2
@@ -37,6 +39,7 @@ typedef long time_t;
 
 #include <stddef.h>
 #include "../drivers/fat/fat.h"
+#include "../ff16/source/ff.h"
 
 typedef unsigned int mode_t;
 
@@ -71,3 +74,5 @@ int close(int fd);
 int read(int fd, char *buf, size_t count);
 off_t lseek(int fd, off_t offset, int whence);
 int stat(const char *path, stat_t *buf);
+int opendir(const char *path);
+int readdir(int fd, FILINFO* fno);

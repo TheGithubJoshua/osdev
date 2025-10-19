@@ -582,4 +582,17 @@ serial_puts(buf2);
     /* Close the file */
     f_close(&fil);
 
+    fr = opendir("./");
+    serial_puts("dfr: ");
+    serial_puthex(fr);
+
+    FILINFO fno;
+    fr = readdir(fr, &fno);
+    serial_puts("dfr2: ");
+    serial_puthex(fr);
+    serial_puts("filinfo: ");
+    serial_puthex((uint64_t)&fno);
+    serial_puts("fname");
+    serial_puts(fno.fname);
+
 }

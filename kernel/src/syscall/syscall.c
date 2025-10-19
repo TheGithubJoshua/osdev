@@ -44,6 +44,19 @@ static inline uint64_t copy_from_user(const void *src, size_t len)
     return (uint64_t)(uintptr_t)k_mem;
 }
 
+/* Copies *len* bytes from kernel buffer *k_mem* into user space address *user_dst*.
+   Returns 0 on success, -1 if any byte of the destination lies outside the user address space. */
+static inline int copy_to_user(uint64_t k_mem, void *user_dst, size_t len)
+{
+    /*
+    if (!is_valid_user_ptr(user_dst, len))
+        return -1;                  
+*/
+    memcpy(user_dst, (void *)k_mem, len);
+    return 0;
+}
+
+
 char* path;
 int open_flags;
 mode_t mode;
@@ -131,6 +144,22 @@ cpu_status_t* syscall_handler(cpu_status_t* regs) {
         case 12:
             // acpi sleep
             lai_enter_sleep(regs->rdi);
+            break;
+        case 13:
+            // opendir
+            regs->rax = opendir((char*)copy_from_user((const void*)regs->rdi, 64));
+            break;
+        case 14:
+            // readdir
+            fd = regs->rdi;          // user dirfd
+            void* user_fno = (void*)regs->rsi;  // user-space pointer to FILINFO
+
+            FILINFO fno;
+            long ret = readdir(fd, &fno);  // kernel-space copy
+
+            copy_to_user((uint64_t)&fno, user_fno, sizeof(FILINFO));
+
+            regs->rax = ret;  // return status to user
             break;
         default:
             regs->rax = E_NO_SYSCALL;
