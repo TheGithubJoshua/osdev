@@ -80,6 +80,25 @@ typedef unsigned short uint16_t;
 
 #define AM_DIR  0x10    /* Directory */
 
+typedef struct rtc_t {
+    unsigned char second;
+    unsigned char minute;
+    unsigned char hour;
+    unsigned char day;
+    unsigned char month;
+    unsigned int year;
+
+    unsigned char century;
+    unsigned char last_second;
+    unsigned char last_minute;
+    unsigned char last_hour;
+    unsigned char last_day;
+    unsigned char last_month;
+    unsigned char last_year;
+    unsigned char last_century;
+    unsigned char registerB;
+} rtc_t;
+
 // Syscall function for print
 static inline void sys_print(const void *buf, size_t len) {
     register uint64_t rax asm("rax") = 8;
@@ -135,6 +154,15 @@ static inline void sys_acpi_sleep(uint64_t sleep_state) {
         "int $0x69"
         :
         : "a"((uint64_t)12), "D"(sleep_state)
+        : "memory"
+    );
+}
+
+static inline void sys_rtc(rtc_t* rtc) {
+    asm volatile(
+        "int $0x69"
+        :
+        : "a"((uint64_t)15), "D"(rtc)
         : "memory"
     );
 }
@@ -291,7 +319,8 @@ void cmd_help(const char *args) {
     print("  clear   - Clear the screen\n");
     print("  ls      - List files\n");
     print("  cat     - Display file contents\n");
-    print("  halt      - Shutdown the system\n");
+    print("  clock   - Display current date and time\n");
+    print("  halt    - Shutdown the system\n");
     print("  exit    - Exit the shell\n");
 }
 
@@ -302,6 +331,115 @@ void cmd_echo(const char *args) {
 
 void cmd_clear(const char *args) {
     print("\033[2J\033[H");  // ANSI escape codes
+}
+
+void cmd_clock(const char *args) {
+    rtc_t rtc;
+    sys_rtc(&rtc);
+
+    // Format YYYY-MM-DDTHH:MM:SSZ
+    // Format each component as two-digit strings with leading zeros if necessary
+    char hr_str[3];
+    if (rtc.hour < 10) {
+        hr_str[0] = '0';
+    } else {
+        hr_str[0] = rtc.hour / 10 + '0';
+    }
+    hr_str[1] = rtc.hour % 10 + '0';
+    hr_str[2] = '\0';
+
+    char min_str[3];
+    if (rtc.minute < 10) {
+        min_str[0] = '0';
+    } else {
+        min_str[0] = rtc.minute / 10 + '0';
+    }
+    min_str[1] = rtc.minute % 10 + '0';
+    min_str[2] = '\0';
+
+    char sec_str[3];
+    if (rtc.second < 10) {
+        sec_str[0] = '0';
+    } else {
+        sec_str[0] = rtc.second / 10 + '0';
+    }
+    sec_str[1] = rtc.second % 10 + '0';
+    sec_str[2] = '\0';
+
+    char day_str[3];
+    if (rtc.day < 10) {
+        day_str[0] = '0';
+    } else {
+        day_str[0] = rtc.day / 10 + '0';
+    }
+    day_str[1] = rtc.day % 10 + '0';
+    day_str[2] = '\0';
+
+    char month_str[3];
+    if (rtc.month < 10) {
+        month_str[0] = '0';
+    } else {
+        month_str[0] = rtc.month / 10 + '0';
+    }
+    month_str[1] = rtc.month % 10 + '0';
+    month_str[2] = '\0';
+
+    // Calculate the full year
+    int full_year = (rtc.century * 100) + rtc.year;
+    char year_str[5];
+    year_str[0] = (full_year / 1000) + '0';
+    year_str[1] = (full_year % 1000 / 100) + '0';
+    year_str[2] = (full_year % 100 / 10) + '0';
+    year_str[3] = full_year % 10 + '0';
+    year_str[4] = '\0';
+
+    // Manually construct the time string (in ISO 8601 ofc)
+    char time_str[26];
+    int index = 0;
+
+    // Add year and hyphen
+    time_str[index++] = year_str[0];
+    time_str[index++] = year_str[1];
+    time_str[index++] = year_str[2];
+    time_str[index++] = year_str[3];
+    time_str[index++] = '-';
+    
+    // Add month and hyphen
+    time_str[index++] = month_str[0];
+    time_str[index++] = month_str[1];
+    time_str[index++] = '-';
+    index += 1;
+
+    // Add day and T
+    time_str[index++] = day_str[0];
+    time_str[index++] = day_str[1];
+    time_str[index++] = 'T';
+    index += 1;
+
+    // Add hours and colon
+    time_str[index++] = hr_str[0];
+    time_str[index++] = hr_str[1];
+    time_str[index++] = ':';
+    index += 1; // Increment after adding each character
+
+    // Add minutes and colon
+    time_str[index++] = min_str[0];
+    time_str[index++] = min_str[1];
+    time_str[index++] = ':';
+    index += 1;
+
+    // Add seconds and Z
+    time_str[index++] = sec_str[0];
+    time_str[index++] = sec_str[1];
+    time_str[index++] = 'Z';
+    index += 1;
+
+    // Ensure null termination
+    time_str[index] = '\0';
+
+    print("The current date and time is: ");
+    sys_print(time_str, 25);
+    print("\n");
 }
 
 void cmd_ls(const char *args) {
@@ -322,7 +460,7 @@ void cmd_ls(const char *args) {
         if (ret < 0 || fno.fname[0] == '\0') break;
 
         if (fno.fattrib & AM_DIR) {
-            print("   <DIR>   ");
+            print(" <DIR> ");
             print(fno.fname);
             print(" ");
             ndir++;
@@ -417,6 +555,7 @@ void execute_command(char *cmdline) {
     if (!strcmp(cmdline, "clear")) { cmd_clear(args); return; }
     if (!strcmp(cmdline, "ls")) { cmd_ls(args); return; }
     if (!strcmp(cmdline, "cat")) { cmd_cat(args); return; }
+    if (!strcmp(cmdline, "clock")) { cmd_clock(args); return; }
     if (!strcmp(cmdline, "halt")) { cmd_halt(args); return; }
     if (!strcmp(cmdline, "exit")) { cmd_exit(args); return; }
 

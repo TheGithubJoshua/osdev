@@ -4,6 +4,7 @@
 #include <lai/helpers/pm.h>
 #include "../util/fb.h"
 #include "../timer.h"
+#include "../drivers/cmos/rtc.h"
 #include "../ff16/source/ff.h"
 #include "../drivers/fat/fat.h"
 #include "../fs/fs.h"
@@ -160,6 +161,12 @@ cpu_status_t* syscall_handler(cpu_status_t* regs) {
             copy_to_user((uint64_t)&fno, user_fno, sizeof(FILINFO));
 
             regs->rax = ret;  // return status to user
+            break;
+        case 15:
+            // read data from RTC
+            rtc_t rtc = read_rtc();
+            void* user_rtc = (void*)regs->rdi;  
+            copy_to_user((uint64_t)&rtc, user_rtc, sizeof(rtc_t));
             break;
         default:
             regs->rax = E_NO_SYSCALL;
