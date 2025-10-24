@@ -15,7 +15,7 @@
 #define ACCESS_READ 0
 #define ACCESS_WRITE 1
 
-typedef long off_t;
+typedef long long off_t;
 typedef unsigned int mode_t;
 typedef long time_t;
 
@@ -76,3 +76,4 @@ off_t lseek(int fd, off_t offset, int whence);
 int stat(const char *path, stat_t *buf);
 int opendir(const char *path);
 int readdir(int fd, FILINFO* fno);
+unsigned int get_size(int fd);

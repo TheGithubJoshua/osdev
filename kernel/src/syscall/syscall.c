@@ -13,6 +13,7 @@
 #include "../userspace/enter.h"
 #include "../buffer/buffer.h"
 #include "../thread/thread.h"
+#include "../userspace/exec.h"
 #include "../userspace/enter.h"
 #include "syscall.h"
 
@@ -167,6 +168,16 @@ cpu_status_t* syscall_handler(cpu_status_t* regs) {
             rtc_t rtc = read_rtc();
             void* user_rtc = (void*)regs->rdi;  
             copy_to_user((uint64_t)&rtc, user_rtc, sizeof(rtc_t));
+            break;
+        case 16:
+            // exec
+            regs->iret_rip = (uint64_t)load_program(regs->rdi);
+            break;
+        case 17:
+            // get fb info
+            struct fb_info info = get_fb_info();
+            void* user_fb_info = (void*)regs->rsi;  // user-space pointer to fb_info
+            regs->rax = copy_to_user((uint64_t)&info, user_fb_info, sizeof(info));
             break;
         default:
             regs->rax = E_NO_SYSCALL;

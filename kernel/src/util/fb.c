@@ -1,4 +1,5 @@
 #include "fb.h"
+#include "../iodebug.h"
 #include "../flanterm/flanterm.h"
 #include "../flanterm/backends/fb.h"
 #include <limine.h>
@@ -78,4 +79,13 @@ uint64_t get_fb_size() {
     return fb->width * fb->height * (fb->bpp / 8);
 }
 
+struct fb_info get_fb_info() {
+    struct limine_framebuffer *fb = framebuffer_request.response->framebuffers[0];
+    return (struct fb_info){
+        .width = fb->width,
+        .height = fb->height,
+        .pitch = fb->pitch,
+        .bpp = fb->bpp
+    };
+}
 

@@ -179,6 +179,10 @@ serial_puthex(fr);
     return E_NOT_IMPLEMENTED;
 }
 
+unsigned int get_size(int fd) {
+    return file_descriptors[fd]->size;
+}
+
 DIR* d;
 
 int opendir(const char *path) {

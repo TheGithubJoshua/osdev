@@ -270,6 +270,15 @@ static inline long sys_readdir(int fd, FILINFO* fno) {
     return ret;
 }
 
+static inline void sys_exec(int fd) {
+    asm volatile(
+        "int $0x69"
+        :
+        : "a"((uint64_t)16), "D"(fd)
+        : "memory"
+    );
+}
+
 // Utility functions
 size_t strlen(const char *s) {
     size_t len = 0;
@@ -321,12 +330,29 @@ void cmd_help(const char *args) {
     print("  cat     - Display file contents\n");
     print("  clock   - Display current date and time\n");
     print("  halt    - Shutdown the system\n");
+    print("  exec    - Executes a program on disk\n");
     print("  exit    - Exit the shell\n");
 }
 
 void cmd_echo(const char *args) {
     print(args);
     print("\n");
+}
+
+void cmd_exec(const char *args) {
+if ((args != 0) && (args[0] != '\0')) {
+    long fd = sys_open(args, 0, 0);
+    if (fd >= 0) {
+    sys_exec(fd);
+    sys_close(fd);
+} else {
+    print("exec: ");
+    print(args);
+    print(": ");
+    print("No such file or directory");
+    print("\n");
+}
+}
 }
 
 void cmd_clear(const char *args) {
@@ -557,6 +583,7 @@ void execute_command(char *cmdline) {
     if (!strcmp(cmdline, "cat")) { cmd_cat(args); return; }
     if (!strcmp(cmdline, "clock")) { cmd_clock(args); return; }
     if (!strcmp(cmdline, "halt")) { cmd_halt(args); return; }
+    if (!strcmp(cmdline, "exec")) { cmd_exec(args); return; }
     if (!strcmp(cmdline, "exit")) { cmd_exit(args); return; }
 
     // Command not found
@@ -575,7 +602,7 @@ void main() {
     print("Type 'help' for available commands.\n\n");
     
     while (1) {
-        print("$ ");
+        print("> ");
         pos = 0;
         memset(linebuf, 0, LB_SIZE);
         

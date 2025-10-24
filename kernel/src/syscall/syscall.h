@@ -5,3 +5,4 @@
 
 void init_syscall();
 cpu_status_t* syscall_handler(cpu_status_t* regs);
+void openfile();
