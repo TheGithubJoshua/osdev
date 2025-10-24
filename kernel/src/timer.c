@@ -116,5 +116,74 @@ void apic_start_timer() {
         outb(PIC2_DATA, 0xff);
 }
 
+static int is_digit(char c) {
+    return c >= '0' && c <= '9';
+}
+
+static int char_to_digit(char c) {
+    return c - '0';
+}
+
+void play_tune(const char *tune, int bpm) {
+    while (*tune) {
+        char note = *tune++;
+
+        // convert uppercase to lowercase manually
+        if (note >= 'A' && note <= 'Z') note += 32;
+
+        int octave = 4;    // default octave
+        int duration = 4;  // default duration (quarter note)
+        uint32_t freq = 0;
+
+        // parse octave if next char is a digit
+        if (is_digit(*tune)) {
+            octave = char_to_digit(*tune++);
+        }
+
+        // skip comma
+        if (*tune == ',') tune++;
+
+        // parse duration
+        if (is_digit(*tune)) {
+            duration = 0;
+            while (is_digit(*tune)) {
+                duration = duration * 10 + char_to_digit(*tune++);
+            }
+        }
+
+        // map note to frequency (basic)
+        switch (note) {
+            case 'p': freq = 0; break; // pause
+            case 'c': freq = 262; break;
+            case 'd': freq = 294; break;
+            case 'e': freq = 330; break;
+            case 'f': freq = 349; break;
+            case 'g': freq = 392; break;
+            case 'a': freq = 440; break;
+            case 'b': freq = 494; break;
+        }
+
+        // apply octave
+        int i;
+        for (i = 4; i < octave; i++) freq *= 2;
+        for (i = octave; i < 4; i++) freq /= 2;
+
+        // compute duration in ms
+        int delay_ms = (60000 / bpm) * 4 / duration;
+
+        if (freq) {
+            play_sound(freq);
+        } else {
+            nosound();
+        }
+
+        // simple busy-wait
+        for (volatile int i = 0; i < delay_ms * 10000; i++);
+        nosound();
+
+        // skip separator
+        if (*tune == ';') tune++;
+    }
+}
 
 

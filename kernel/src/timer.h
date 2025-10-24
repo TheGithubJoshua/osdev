@@ -13,3 +13,4 @@ void beep();
 void apic_start_timer();
 size_t uptime();
 uint64_t get_ticks();
+void play_tune(const char *tune, int bpm);

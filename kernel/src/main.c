@@ -10,6 +10,7 @@
 #include "acpi/acpi.h"
 #include "lai/include/lai/core.h"
 #include "mm/pmm.h"
+#include "panic/panic.h"
 #include "buffer/buffer.h"
 #include "timer.h"
 #include "util/fb.h"
@@ -502,6 +503,18 @@ asm volatile ("lgdt %0" :: "m"(new_gdtr));
 
     init_flanterm();
     struct flanterm_context *ft_ctx = flanterm_get_ctx();
+    flanterm_write(flanterm_get_ctx(), "\033[38;2;255;165;0m", 18);
+    /* display banner */
+        const char *banner =
+        "  _________               __                   ________________ \n"
+        " /   _____/__.__. _______/  |_  ____   _____  /  _____/   __   \\\n"
+        " \\_____  <   |  |/  ___/\\   __\\/ __ \\ /     \\/   __  \\\\____    /\n"
+        " /        \\___  |\\___ \\  |  | \\  ___/|  Y Y  \\  |__\\  \\  /    / \n"
+        "/_______  / ____/____  > |__|  \\___  >__|_|  /\\_____  / /____/  \n"
+        "        \\/\\/         \\/            \\/      \\/       \\/          \n";
+
+        flanterm_write(flanterm_get_ctx(), banner, strlenn(banner));
+        flanterm_write(flanterm_get_ctx(), "\033[0m", 4); // reset color
     pmm_init();
     //initialise_multitasking();
     //timer_wait(5);

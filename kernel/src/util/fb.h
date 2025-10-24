@@ -23,3 +23,4 @@ void uint64_to_hex(uint16_t val, char *out);
 uint32_t* get_fb_addr();
 uint64_t get_fb_size();
 struct fb_info get_fb_info();
+void flanterm_puthex(uint64_t val);

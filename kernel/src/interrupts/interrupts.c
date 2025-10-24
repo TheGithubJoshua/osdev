@@ -7,6 +7,7 @@
 #include "interrupts.h"
 #include "../memory.h"
 #include "../util/fb.h"
+#include "../panic/panic.h"
 #include "../drivers/fat/fat.h"
 #include "../syscall/syscall.h"
 #include "../drivers/pci/pci.h"
@@ -120,18 +121,21 @@ void exception_handler(cpu_status_t* cpu_status_t) {
         break;
     case 6:
         serial_puts("invalid opcode");
+        kpanik(cpu_status_t);
         break;
     case 7:
         serial_puts("device not available");
         break;
     case 8:
         serial_puts("double fault");
+        kpanik(cpu_status_t);
         break;
     case 9:
         serial_puts("coprocessor segment overrun");
         break;
     case 10:
         serial_puts("invalid tss");
+        kpanik(cpu_status_t);
         break;
     case 11:
         serial_puts("segment not present");
@@ -141,6 +145,7 @@ void exception_handler(cpu_status_t* cpu_status_t) {
         break;
     case 13:
         serial_puts("general protection fault");
+        kpanik(cpu_status_t);
         break;
     case 14:
         serial_puts("page fault \n");
@@ -156,12 +161,7 @@ void exception_handler(cpu_status_t* cpu_status_t) {
         flanterm_write(flanterm_get_ctx(), "[KERNEL][WARN] Non-Present page identity mapped!\n", 50);
         flanterm_write(flanterm_get_ctx(), "\033[0m", 5);
     } else {
-        flanterm_write(flanterm_get_ctx(), "\033[31m", 5);
-        flanterm_write(flanterm_get_ctx(), "[KERNEL][FATAL] Page fault at ", 25);
-        flanterm_write(flanterm_get_ctx(), (const char*)val, 20);
-        flanterm_write(flanterm_get_ctx(), "!\n", 3);
-        flanterm_write(flanterm_get_ctx(), "\033[0m", 5);
-        asm volatile ("cli; hlt");
+        kpanik(cpu_status_t);
     }
         //asm volatile ("cli; hlt");
         break;

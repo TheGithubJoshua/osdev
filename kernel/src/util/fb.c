@@ -89,3 +89,13 @@ struct fb_info get_fb_info() {
     };
 }
 
+void flanterm_puthex(uint64_t val) {
+    char buf[17]; // 16 hex digits + null
+    for (int i = 15; i >= 0; i--) {
+        uint8_t nibble = val & 0xF;
+        buf[i] = (nibble < 10) ? ('0' + nibble) : ('A' + nibble - 10);
+        val >>= 4;
+    }
+    flanterm_write(flanterm_get_ctx(), buf, 16);
+}
+
