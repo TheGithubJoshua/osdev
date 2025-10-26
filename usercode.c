@@ -598,7 +598,7 @@ void main() {
     char linebuf[LB_SIZE];
     size_t pos = 0;
     
-    print("\n=== Shell ===\n");
+    print("\n=== Monolith64 Shell v0.1 ===\n");
     print("Type 'help' for available commands.\n\n");
     
     while (1) {

@@ -502,19 +502,20 @@ asm volatile ("lgdt %0" :: "m"(new_gdtr));
     fadt_t *fadt = get_fadt(get_xsdt_table());
 
     init_flanterm();
-    struct flanterm_context *ft_ctx = flanterm_get_ctx();
-    flanterm_write(flanterm_get_ctx(), "\033[38;2;255;165;0m", 18);
+    struct flanterm_context *ft_ctx = flanterm_get_ctx();                                                        
+    flanterm_write(flanterm_get_ctx(), "\033[38;2;0;160;255m", 18);
     /* display banner */
-        const char *banner =
-        "  _________               __                   ________________ \n"
-        " /   _____/__.__. _______/  |_  ____   _____  /  _____/   __   \\\n"
-        " \\_____  <   |  |/  ___/\\   __\\/ __ \\ /     \\/   __  \\\\____    /\n"
-        " /        \\___  |\\___ \\  |  | \\  ___/|  Y Y  \\  |__\\  \\  /    / \n"
-        "/_______  / ____/____  > |__|  \\___  >__|_|  /\\_____  / /____/  \n"
-        "        \\/\\/         \\/            \\/      \\/       \\/          \n";
-
-        flanterm_write(flanterm_get_ctx(), banner, strlenn(banner));
-        flanterm_write(flanterm_get_ctx(), "\033[0m", 4); // reset color
+    flanterm_write(flanterm_get_ctx(), "    __  ___                  ___ __  __    _____ __ __", strlenn("    __  ___                  ___ __  __    _____ __ __"));
+    flanterm_write(flanterm_get_ctx(), "\n", 1);
+    flanterm_write(flanterm_get_ctx(), "   /  |/  /___  ____  ____  / (_) /_/ /_  / ___// // /", strlenn("   /  |/  /___  ____  ____  / (_) /_/ /_  / ___// // /"));
+    flanterm_write(flanterm_get_ctx(), "\n", 1);
+    flanterm_write(flanterm_get_ctx(), "  / /|_/ / __ \\/ __ \\/ __ \\/ / / __/ __ \\/ __ \\/ // /_", strlenn("  / /|_/ / __ \\/ __ \\/ __ \\/ / / __/ __ \\/ __ \\/ // /_"));
+    flanterm_write(flanterm_get_ctx(), "\n", 1);
+    flanterm_write(flanterm_get_ctx(), " / /  / / /_/ / / / / /_/ / / / /_/ / / / /_/ /__  __/", strlenn(" / /  / / /_/ / / / / /_/ / / / /_/ / / / /_/ /__  __/"));
+    flanterm_write(flanterm_get_ctx(), "\n", 1);
+    flanterm_write(flanterm_get_ctx(), "/_/  /_/\\____/_/ /_/\\____/_/_/\\__/_/ /_/\\____/  /_/   ", strlenn("/_/  /_/\\____/_/ /_/\\____/_/_/\\__/_/ /_/\\____/  /_/   "));
+    flanterm_write(flanterm_get_ctx(), "\n", 1);
+    flanterm_write(flanterm_get_ctx(), "\033[0m", 4); // reset color
     pmm_init();
     //initialise_multitasking();
     //timer_wait(5);
