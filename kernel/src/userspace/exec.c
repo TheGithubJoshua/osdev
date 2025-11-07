@@ -72,7 +72,7 @@ uint64_t load_program(int filedesc) {
 	entry_t elf = load_elf(fd, false);
 	serial_puts("elf size: ");
 	serial_puthex(elf_size);
-	elf_size += 0x2000; // fix me
+	//elf_size += 0x2000; // fix me
 	// Map the page to userspace address, readable + executable + user access
 	void* phys_page = palloc((elf_size + PAGE_SIZE - 1) / PAGE_SIZE, false); // alloc physical
 
@@ -81,12 +81,10 @@ uint64_t load_program(int filedesc) {
 	serial_puts("user_code_vaddr: ");
 	serial_puthex(user_code_vaddr);
 	// Then map it into user space for execution
-	for (uint64_t offset = 0; offset < elf_size; offset += PAGE_SIZE) {
-	    map_page(read_cr3(),
-	             user_code_vaddr + offset,
-	             (uint64_t)phys_page + offset,
-	             PAGE_PRESENT | PAGE_USER | PAGE_WRITABLE | PAGE_EXECUTE);
-	}
+	map_len(read_cr3(),
+	        user_code_vaddr,
+	        (uint64_t)phys_page,
+	        PAGE_PRESENT | PAGE_USER | PAGE_WRITABLE | PAGE_EXECUTE, elf_size);
 
 	// Now it's safe to memcpy
 	memcpy((void*)user_code_vaddr, (void*)elf, elf_size);

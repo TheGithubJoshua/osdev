@@ -50,6 +50,12 @@
 #define PF_W        (1 << 1)    // Writable
 #define PF_R        (1 << 2)    // Readable
 
+#define PHDR(HDRP, IDX) \
+    (void *)((uintptr_t)HDRP + (HDRP)->e_phoff + (HDRP->e_phentsize * IDX))
+
+#define SHDR(HDRP, IDX) \
+    (void *)((uintptr_t)HDRP + (HDRP)->e_shoff + (HDRP->e_shentsize * IDX))
+
 typedef uint64_t Elf64_Addr;
 typedef uint64_t Elf64_Off;
 typedef uint16_t Elf64_Half;
@@ -94,14 +100,14 @@ typedef struct {
 typedef struct {
 	Elf64_Word	sh_name;
 	Elf64_Word	sh_type;
-	Elf64_Word	sh_flags;
+	Elf64_Xword	sh_flags;
 	Elf64_Addr	sh_addr;
 	Elf64_Off	sh_offset;
-	Elf64_Word	sh_size;
+	Elf64_Xword	sh_size;
 	Elf64_Word	sh_link;
 	Elf64_Word	sh_info;
-	Elf64_Word	sh_addralign;
-	Elf64_Word	sh_entsize;
+	Elf64_Xword	sh_addralign;
+	Elf64_Xword	sh_entsize;
 } Elf64_Shdr;
 
 enum ShT_Types {
@@ -141,14 +147,14 @@ enum StT_Types {
 };
 
 typedef struct {
-	Elf64_Word		p_type;
-	Elf64_Off		p_offset;
-	Elf64_Addr		p_vaddr;
-	Elf64_Addr		p_paddr;
-	Elf64_Word		p_filesz;
-	Elf64_Word		p_memsz;
-	Elf64_Word		p_flags;
-	Elf64_Word		p_align;
+    Elf64_Word   p_type;
+    Elf64_Word   p_flags;
+    Elf64_Off    p_offset;
+    Elf64_Addr   p_vaddr;
+    Elf64_Addr   p_paddr;
+    Elf64_Xword  p_filesz;
+    Elf64_Xword  p_memsz;
+    Elf64_Xword  p_align;
 } Elf64_Phdr;
 
 typedef void (*entry_t)(void);

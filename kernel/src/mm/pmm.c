@@ -1,6 +1,7 @@
 #include <stdint.h>
 #include <limine.h>
 #include "pmm.h"
+#include "../panic/panic.h"
 #include "../memory.h"
 #include "../iodebug.h"
 #include "../bitmap.h"
@@ -108,6 +109,7 @@ void *palloc(size_t pages, bool higher_half) {
         bitmap_set(bitmap, (uint64_t)addr / PAGE_SIZE);
         free_pages--;
         memset(HIGHER_HALF(addr), 0, pages * PAGE_SIZE);
+        if (!addr) { panik_no_mem(); }
         return higher_half ? (void *)((uint64_t)addr + get_phys_offset()) : addr;
     }
 
@@ -135,6 +137,7 @@ void *palloc(size_t pages, bool higher_half) {
 
                         void *addr = (void *)((start_bit + j - pages + 1) * PAGE_SIZE);
                         memset(HIGHER_HALF(addr), 0, pages * PAGE_SIZE);
+                        if (!addr) { panik_no_mem(); }
                         return higher_half ? (void *)((uint64_t)addr + get_phys_offset()) : addr;
                     }
                 }

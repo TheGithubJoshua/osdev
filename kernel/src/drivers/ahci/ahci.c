@@ -281,16 +281,16 @@ bool ahci_read(HBA_PORT *port, uint32_t startl, uint32_t starth, uint32_t count,
 	if (slot == -1)
 		return false;
 
-	HBA_CMD_HEADER *cmdheader = (HBA_CMD_HEADER*)port->clb;
+	HBA_CMD_HEADER *cmdheader = (HBA_CMD_HEADER*)PHYS_TO_VIRT(port->clb);
 	cmdheader += slot;
 	cmdheader->cfl = sizeof(FIS_REG_H2D)/sizeof(uint32_t);	// Command FIS size
 	cmdheader->p = 1;
 	cmdheader->w = 0;		// Read from device
 	cmdheader->prdtl = (uint16_t)((count-1)>>4) + 1;	// PRDT entries count
 
-	HBA_CMD_TBL *cmdtbl = (HBA_CMD_TBL*)(cmdheader->ctba);
-	memset(cmdtbl, 0, sizeof(HBA_CMD_TBL) +
- 		(cmdheader->prdtl-1)*sizeof(HBA_PRDT_ENTRY));
+    map_page(read_cr3(), cmdheader->ctba, cmdheader->ctba, PAGE_PRESENT | PAGE_WRITABLE | PAGE_USER | PAGE_NO_EXECUTE);
+	HBA_CMD_TBL *cmdtbl = (HBA_CMD_TBL*)PHYS_TO_VIRT((cmdheader->ctba));
+	memset(cmdtbl, 0, sizeof(HBA_CMD_TBL)+(cmdheader->prdtl-1)*sizeof(HBA_PRDT_ENTRY));
 
 	// 8K bytes (16 sectors) per PRDT
 	for (int i = 0; i < cmdheader->prdtl - 1; i++) {

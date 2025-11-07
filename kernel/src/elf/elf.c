@@ -1,6 +1,6 @@
 #include "elf.h"
 #include "../iodebug.h"
-#include "memory.h"
+#include "../memory.h"
 #include "../thread/thread.h"
 #include "../mm/pmm.h"
 #include "../userspace/enter.h"
@@ -310,45 +310,6 @@ void *elf_load_file(void *file) {
 	return NULL;
 }
 
-entry_t load_segment_to_memory(uint64_t pml4_phys, Elf64_Phdr *phdr, uint64_t segment_phys_addr) {
-    uint64_t vaddr_start = phdr->p_vaddr;
-    uint64_t memsz = phdr->p_memsz;
-    uint64_t filesz = phdr->p_filesz;
-
-    // Calculate page-aligned start and end
-    uint64_t vaddr_page_start = vaddr_start & ~(PAGE_SIZE - 1);
-    uint64_t vaddr_page_end = (vaddr_start + memsz + PAGE_SIZE - 1) & ~(PAGE_SIZE - 1);
-
-    // Offset inside first page
-    uint64_t offset_in_first_page = vaddr_start & (PAGE_SIZE - 1);
-
-    // Determine flags
-    uint64_t flags = 0;
-    if (phdr->p_flags & PF_R) flags |= PAGE_PRESENT;
-    if (phdr->p_flags & PF_W) flags |= PAGE_WRITABLE;
-    if (!(phdr->p_flags & PF_X)) flags |= PAGE_NO_EXECUTE;
-
-    // Map each page
-    uint64_t num_pages = (vaddr_page_end - vaddr_page_start) / PAGE_SIZE;
-
-    for (uint64_t i = 0; i < num_pages; i++) {
-        uint64_t va = vaddr_page_start + i * PAGE_SIZE;
-        uint64_t pa = segment_phys_addr - offset_in_first_page + i * PAGE_SIZE;
-        
-        map_page(pml4_phys, va, pa, flags);
-    }
-
-    // Zero BSS: if memsz > filesz, zero from (vaddr_start + filesz) to (vaddr_start + memsz)
-    if (memsz > filesz) {
-        uint64_t bss_start = vaddr_start + filesz;
-        uint64_t bss_size = memsz - filesz;
-
-        // Zero the memory region starting at bss_start for bss_size bytes.
-        // You have to be sure this memory is writable and mapped (already mapped above).
-        memset((void *)bss_start, 0, bss_size);
-    }
-}
-
 // takes the address of an ELF file in memory and executes it
 entry_t load_elf(void *file, bool exec) {
 uint64_t pml4_phys_addr = read_cr3();
@@ -363,11 +324,8 @@ bool result = elf_check_file(ehdr);
 if (result) { serial_puts("elf is good!"); }
 result = elf_check_supported(ehdr);
 if (result) { serial_puts("elf is supported!"); }
-result = elf_load_file(file);
-if (result) { serial_puts("file loaded!"); } else { serial_puts("loading failed!"); }
-//void *entry = elf_load_file(ehdr);
 
-uintptr_t entry_offset = /*ehdr->e_entry*/1000;  // ELF entry point relative to load base // fix me
+uintptr_t entry_offset = /*ehdr->e_entry*/1000;  // ELF entry point relative to load base // fix me (maybe 0x400000(base) - e_entry)?
 uintptr_t base = (uintptr_t)file;
 serial_puts("\nbase: ");
 serial_puthex(base);
@@ -378,42 +336,31 @@ entry_t entry = (entry_t)(base + entry_offset);
 serial_puthex((uint64_t)(uintptr_t)entry);
 
 Elf64_Phdr *phdrs = (Elf64_Phdr *)((uint8_t *)ehdr + ehdr->e_phoff);
+uint64_t min_vaddr = UINT64_MAX;
+uint64_t max_vaddr = 0;
+
+serial_puts("Mapped ELF segments:\n");
+serial_puts(" VADDR      FILESZ  MEMSZ  FLAGS\n");
 for (int i = 0; i < ehdr->e_phnum; i++) {
     Elf64_Phdr *ph = &phdrs[i];
     if (ph->p_type != PT_LOAD) continue;
 
-    //load_segment_to_memory(pml4_phys_addr, ph, (uint64_t)(uintptr_t)entry);
+    uint64_t seg_start = ALIGN_DOWN(ph->p_vaddr);
+    uint64_t seg_end   = ALIGN_UP(ph->p_vaddr + ph->p_memsz);
 
-    void *dest = (void *)(uintptr_t)ph->p_vaddr;
-    void *src = (uint8_t *)ehdr + ph->p_offset;
-
-
-serial_puts("p_vaddr: ");
-serial_puthex(ph->p_vaddr);
-serial_puts(" p_memsz: ");
-serial_puthex(ph->p_memsz);
-serial_puts("\n");
-
-   // Copy segment contents
-    memcpy(dest, src, ph->p_filesz);
-
-    // Zero the rest (.bss)
-    //memset((uint8_t *)dest + ph->p_filesz, 0, ph->p_memsz - ph->p_filesz);
-}
-
-
-for (int i = 0; i < ehdr->e_phnum; i++) {
-    ph = &phdrs[i];
-    if (ph->p_type != PT_LOAD) continue;
-
-    uint64_t seg_start = ph->p_vaddr & ~0xFFF;
-    uint64_t seg_end   = (ph->p_vaddr + ph->p_memsz + 0xFFF) & ~0xFFF;
-
-    for (uint64_t addr = seg_start; addr < seg_end; addr += 0x1000) {
+    /*for (uint64_t addr = seg_start; addr < seg_end; addr += 0x1000) {
         uint64_t phys = (uint64_t)palloc(1, false); // Allocate physical memory
         uint64_t flags = PAGE_PRESENT | PAGE_WRITABLE | PAGE_USER;
         map_page(pml4_phys_addr, addr, phys, flags);
-    }
+    }*/
+
+    uint64_t misalign = ph->p_vaddr & (PAGE_SIZE - 1);
+    uint64_t maplen = ALIGN_UP(ph->p_memsz + misalign);
+    uint64_t page_count = maplen / PAGE_SIZE;
+
+    uint64_t phys = (uint64_t)palloc(page_count, false);
+    uint64_t flags = PAGE_PRESENT | PAGE_WRITABLE | PAGE_USER;
+    map_len(pml4_phys_addr, PAGE_FLOOR(ph->p_vaddr), phys, flags, page_count);
 
     // Now copy segment data and zero .bss
     void *dest = (void *)(uintptr_t)ph->p_vaddr;
@@ -424,23 +371,28 @@ for (int i = 0; i < ehdr->e_phnum; i++) {
         memset((uint8_t *)dest + ph->p_filesz, 0, ph->p_memsz - ph->p_filesz);
     }
 
-    serial_puts("Mapped segment at vaddr: ");
     serial_puthex(ph->p_vaddr);
+    serial_puts("  ");
+    serial_puthex(ph->p_filesz);
+    serial_puts("  ");
+    serial_puthex(ph->p_memsz);
+    serial_puts("  ");
+
+    char flagss[4] = "---";
+    if (ph->p_flags & PF_R) flagss[0] = 'R';
+    if (ph->p_flags & PF_W) flagss[1] = 'W';
+    if (ph->p_flags & PF_X) flagss[2] = 'E'; // executable
+    serial_puts(flagss);
     serial_puts("\n");
 
-    uint8_t *code = (uint8_t *)ph->p_vaddr;
-    serial_puts("Code bytes: ");
-    for (int j = 0; j < 16; j++) {
-        serial_puthex(code[j]);
-        serial_puts(" ");
-    }
-    serial_puts("\n");
-
-    elf_size = ph->p_filesz; // fix me
-    serial_puts("file_size: ");
-    serial_puthex(elf_size);
+    if (seg_start < min_vaddr)
+        min_vaddr = seg_start;
+    if (seg_end > max_vaddr)
+        max_vaddr = seg_end;
 
 }
+uint64_t total_segment_size = max_vaddr - min_vaddr;
+elf_size = total_segment_size;
 
 if (entry != NULL) {
 	//quickmap(0x0000000000403010,0x0000000000403010);
@@ -467,7 +419,7 @@ if (entry != NULL) {
 	serial_puts("(elf loaded, will not execute)");
 	serial_puts("e_entry: ");
 	serial_puthex(ehdr->e_entry);
-	return entry + 0x0C18; // why (im not questioning it)
+	return entry;
 }
 } else {
     serial_puts("Failed to load ELF.\n");
@@ -489,15 +441,7 @@ void load_module_from_disk() {
 }
 
 uint64_t get_size_of_elf() {
-	uint64_t vaddr_start = ph->p_vaddr;
-	uint64_t memsz = ph->p_memsz;
-	uint64_t filesz = ph->p_filesz;
-
-	// Calculate page-aligned start and end
-	uint64_t vaddr_page_start = vaddr_start & ~(PAGE_SIZE - 1);
-	uint64_t vaddr_page_end = (vaddr_start + memsz + PAGE_SIZE - 1) & ~(PAGE_SIZE - 1);
-	elf_size = vaddr_page_end - vaddr_page_start;
-	serial_puts("elf size before ret: ");
+	serial_puts("total_segment_size: ");
 	serial_puthex(elf_size);
 	return elf_size;
 }

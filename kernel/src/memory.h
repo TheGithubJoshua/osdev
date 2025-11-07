@@ -31,7 +31,21 @@
 #define PD_INDEX(va)   (((va) >> 21) & 0x1FF)
 #define PT_INDEX(va)   (((va) >> 12) & 0x1FF)
 
+#define VM_HIGHER_HALF (get_phys_offset())
+#define PHYS_TO_VIRT(phys) (void *)((uintptr_t)phys + VM_HIGHER_HALF)
+#define VIRT_TO_PHYS(virt) ((uintptr_t)virt - VM_HIGHER_HALF)
+
 #define virt_to_phys(x) ((uint64_t)(x) - get_phys_offset())
+
+/* Align up/down a value */
+#define ALIGN_DOWN(value, align)      ((value) & ~((align)-1))
+#define ALIGN_UP(value, align)        (((value) + (align)-1) & ~((align)-1))
+#define MALIGN(value)                 ALIGN_UP((value), M_WORD_SIZE)
+#define PAGE_FLOOR(addr)  ((addr) & ~(PAGE_SIZE - 1ULL))
+#define PAGE_CEIL(addr)   (((addr) + PAGE_SIZE - 1ULL) & ~(PAGE_SIZE - 1ULL))
+#define PAGE_ALIGNED(addr)  (((addr) & (PAGE_SIZE - 1ULL)) == 0)
+
+#define ISSET(v, f)  ((v) & (f))
 
 typedef struct {
     uint64_t present : 1;
@@ -69,3 +83,4 @@ uint64_t read_cr3(void);
 pt_entry_t *get_pml4_table(uint64_t pml4_phys);
 int is_mapped(uint64_t virtual_addr);
 size_t strlenn(const char *s);
+void map_len(uint64_t pml4_phys, uint64_t virtual_addr, uint64_t physical_addr, uint64_t flags, size_t len);

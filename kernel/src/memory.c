@@ -248,6 +248,14 @@ void map_size(uint64_t phys_addr, uint64_t virt_addr, uint64_t size) {
     }
 }
 
+void map_len(uint64_t pml4_phys, uint64_t virtual_addr, uint64_t physical_addr, uint64_t flags, size_t len) {
+    for (uint64_t offset = 0; offset < len; offset += PAGE_SIZE) {
+        uint64_t va = virtual_addr + offset;
+        uint64_t pa = physical_addr + offset;
+        map_page(pml4_phys, va, pa, flags);
+    }
+}
+
 #define PAGE_SHIFT   12
 #define PAGE_MASK    0x1FF
 
