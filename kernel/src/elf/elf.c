@@ -419,7 +419,7 @@ if (entry != NULL) {
 	serial_puts("(elf loaded, will not execute)");
 	serial_puts("e_entry: ");
 	serial_puthex(ehdr->e_entry);
-	return entry;
+	return (entry_t)ehdr->e_entry;
 }
 } else {
     serial_puts("Failed to load ELF.\n");
