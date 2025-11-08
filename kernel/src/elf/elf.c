@@ -345,7 +345,7 @@ for (int i = 0; i < ehdr->e_phnum; i++) {
     Elf64_Phdr *ph = &phdrs[i];
     if (ph->p_type != PT_LOAD) continue;
 
-    uint64_t seg_start = ALIGN_DOWN(ph->p_vaddr);
+    uint64_t seg_start = PAGE_FLOOR(ph->p_vaddr);
     uint64_t seg_end   = ALIGN_UP(ph->p_vaddr + ph->p_memsz);
 
     /*for (uint64_t addr = seg_start; addr < seg_end; addr += 0x1000) {
