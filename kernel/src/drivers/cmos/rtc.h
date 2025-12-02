@@ -20,3 +20,4 @@ typedef struct rtc_t {
 int get_update_in_progress_flag();
 unsigned char get_RTC_register(int reg);
 rtc_t read_rtc();
+int day_of_year(int day, int month, int year);

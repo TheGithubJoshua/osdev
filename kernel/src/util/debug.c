@@ -35,23 +35,23 @@ void serial_init() {
 
 // Send a single character to COM1
 void serial_putc(char c) {
-    /*// aqcuire spinlock
+    // aqcuire spinlock
     acquire(&serial_lock);
     // Wait until the Transmitter Holding Register is empty (bit 5 of LSR)
     while ((inb(COM1_LINE_STATUS) & 0x20) == 0);
     outb(COM1_DATA_PORT, c);
-    release(&serial_lock);*/
+    release(&serial_lock);
 }
 
 // Send a string to COM1
 void serial_puts(const char *s) {
-  /*  while (*s) {
+    while (*s) {
         serial_putc(*s++);
-    }*/
+    }
 }
 
 void serial_puthex(uint64_t value) {
-  /*  const char hex_chars[] = "0123456789ABCDEF";
+    const char hex_chars[] = "0123456789ABCDEF";
     
     serial_putc('0');
     serial_putc('x');
@@ -60,5 +60,5 @@ void serial_puthex(uint64_t value) {
     for (int i = 60; i >= 0; i -= 4) {
         uint8_t nibble = (value >> i) & 0xF;
         serial_putc(hex_chars[nibble]);
-    }*/
+    }
 }

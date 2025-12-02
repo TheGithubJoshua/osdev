@@ -84,8 +84,8 @@ DRESULT disk_read (
 		// translate the arguments here
 
 		result = ahci_readblock(sector, buff, count);
-		serial_puts("ahci buff: ");
-		serial_puts(buff);
+		//serial_puts("ahci buff: ");
+		//serial_puts(buff);
 
 		// translate the reslut code here
 
@@ -104,26 +104,24 @@ DRESULT disk_read (
 #if FF_FS_READONLY == 0
 
 DRESULT disk_write (
-	BYTE pdrv,			/* Physical drive nmuber to identify the drive */
-	const BYTE *buff,	/* Data to be written */
-	LBA_t sector,		/* Start sector in LBA */
-	UINT count			/* Number of sectors to write */
+	BYTE pdrv,		/* Physical drive nmuber to identify the drive */
+	const BYTE *buff,		/* Data buffer to store read data */
+	LBA_t sector,	/* Start sector in LBA */
+	UINT count		/* Number of sectors to read */
 )
 {
 	DRESULT res;
 	int result;
 
-	switch (pdrv) {
 
-	case DEV_AHCI :
 		// translate the arguments here
 
-		//result = MMC_disk_write(buff, sector, count);
+		result = ahci_writeblock(sector, buff, count);
 
 		// translate the reslut code here
 
-		return res;
-	}
+		if (result == true) { return RES_OK; }
+		if (result == false) { return 1; }
 
 	return RES_PARERR;
 }
@@ -153,13 +151,10 @@ DRESULT disk_ioctl (
 
 	case DEV_AHCI :
 
-		// Process of the command for the MMC/SD card
-
+        res = RES_OK;
 		return res;
 
 	case DEV_USB :
-
-		// Process of the command the USB drive
 
 		return res;
 	}

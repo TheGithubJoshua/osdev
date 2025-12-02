@@ -3,6 +3,8 @@
 /*------------------------------------------------------------------------*/
 
 #include "ff.h"
+#include "../../drivers/cmos/rtc.h"
+#include "../../iodebug.h"
 
 
 #if FF_USE_LFN == 3	/* Use dynamic memory allocation */
@@ -206,3 +208,20 @@ void ff_mutex_give (
 
 #endif	/* FF_FS_REENTRANT */
 
+/* get the time*/
+DWORD get_fattime(void)
+{
+    struct tm *stm;
+    rtc_t rtc;
+
+    rtc = read_rtc();
+    DWORD year = rtc.year + rtc.century * 100;   // full year
+    DWORD fat_year = year - 1980;                // 0–127
+
+    return (DWORD)fat_year << 25 |
+           (DWORD)(rtc.month) << 21 |
+           (DWORD)rtc.day << 16 |
+           (DWORD)rtc.hour << 11 |
+           (DWORD)rtc.minute << 5 |
+           (DWORD)rtc.second >> 1;
+}

@@ -102,3 +102,20 @@ rtc_t read_rtc() {
 
       return rtc;
 }
+
+// helper function to get day of year
+int day_of_year(int day, int month, int year)
+{
+    static const int days_before_month[12] =
+        { 0, 31, 59, 90, 120, 151, 181, 212, 243, 273, 304, 334 };
+
+    int doy = days_before_month[month - 1] + day;
+
+    // leap year adjustment
+    int leap = (year % 4 == 0 && (year % 100 != 0 || year % 400 == 0));
+
+    if (leap && month > 2)
+        doy += 1;
+
+    return doy;
+}

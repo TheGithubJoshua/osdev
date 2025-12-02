@@ -228,7 +228,7 @@ bool ahci_write(HBA_PORT *port, uint32_t start1, uint32_t starth, uint32_t count
 		return false;
 	}
 
-	serial_puts("Port tfd before command: 0x");
+	/*serial_puts("Port tfd before command: 0x");
 	serial_puthex(port->tfd);
 	serial_puts("\n");
 	serial_puts("Port ssts: 0x");
@@ -240,7 +240,7 @@ bool ahci_write(HBA_PORT *port, uint32_t start1, uint32_t starth, uint32_t count
 
 	serial_puts("Port ci before command: 0x");
 	serial_puthex(port->ci);
-	serial_puts("\n");
+	serial_puts("\n");*/
 
 	for (int i = 0; i < 10; i++) {
 	    serial_puts("Port ssts: 0x");
@@ -263,7 +263,7 @@ bool ahci_write(HBA_PORT *port, uint32_t start1, uint32_t starth, uint32_t count
 	        return false;
 	    }
 	}
-	serial_puts("past loop!");
+	//serial_puts("past loop!");
 
 	// Check again
 	if (port->is & HBA_PxIS_TFES)
@@ -347,7 +347,7 @@ bool ahci_read(HBA_PORT *port, uint32_t startl, uint32_t starth, uint32_t count,
 		return false;
 	}
 
-	serial_puts("Port tfd before command: 0x");
+	/*serial_puts("Port tfd before command: 0x");
 	serial_puthex(port->tfd);
 	serial_puts("\n");
 	serial_puts("Port ssts: 0x");
@@ -360,11 +360,11 @@ bool ahci_read(HBA_PORT *port, uint32_t startl, uint32_t starth, uint32_t count,
 	serial_puts("Port ci before command: 0x");
 	serial_puthex(port->ci);
 	serial_puts("\n");
-
+*/
 	for (int i = 0; i < 10; i++) {
-	    serial_puts("Port ssts: 0x");
+	    /*serial_puts("Port ssts: 0x");
 	    serial_puthex(port->ssts);
-	    serial_puts("\n");
+	    serial_puts("\n");*/
 	    //timer_wait(100);
 	}
 
@@ -403,16 +403,38 @@ bool ahci_readblock(uint64_t lba, unsigned char *buffer, unsigned int num) {
 
     uint32_t startl = (uint32_t)(lba & 0xFFFFFFFF);
     uint32_t starth = (uint32_t)(lba >> 32);
-    serial_puts("lba: ");
-   serial_puthex(lba);
+    /*serial_puts("lba: ");
+    serial_puthex(lba);*/
 
     bool status = ahci_read(port, startl, starth, num, buf);
     if (!status) return false;
     uint8_t *byte_buf = (uint8_t *)buffer;
-    for (int i = 0; i < 16; i++) {
+    /*for (int i = 0; i < 16; i++) {
         serial_puthex(byte_buf[i]);
         serial_puts(" ");
+    }*/
+    return true;
+}
+
+bool ahci_writeblock(uint64_t lba, unsigned char *buffer, unsigned int num) {
+    if (!port) {
+        // No SATA device found.
+        return false;
     }
+    uint16_t *buf = (uint16_t *)buffer;
+
+    uint32_t startl = (uint32_t)(lba & 0xFFFFFFFF);
+    uint32_t starth = (uint32_t)(lba >> 32);
+    /*serial_puts("lba: ");
+    serial_puthex(lba);*/
+
+    bool status = ahci_write(port, startl, starth, num, buf);
+    if (!status) return false;
+    uint8_t *byte_buf = (uint8_t *)buffer;
+    /*for (int i = 0; i < 16; i++) {
+        serial_puthex(byte_buf[i]);
+        serial_puts(" ");
+    }*/
     return true;
 }
 
@@ -559,10 +581,12 @@ FATFS FatFs;   /* Work area (filesystem object) for logical drive */
     serial_puthex(m);
 
     /* Open a text file */
-    fr = f_open(&fil, "test", FA_READ | FA_OPEN_EXISTING);
+    fr = f_open(&fil, "test", FA_WRITE | FA_OPEN_EXISTING);
     //if (fr) return (int)fr;
     serial_puts("fr: ");
     serial_puthex(fr);
+
+    fr = f_puts("...that has been edited by the operating system.", &fil);
 
 /*UINT br;
 char buf2[64];
@@ -572,12 +596,6 @@ serial_puthex(br);
 buf2[br] = 0;
 serial_puts(buf2);
 */
-
-    /* Read every line and display it */
-    serial_puts("incoming test file: ");
-    while (f_gets(line, sizeof line, &fil)) {
-        serial_puts(line);
-    }
 
     /* Close the file */
     f_close(&fil);
