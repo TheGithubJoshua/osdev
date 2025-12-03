@@ -151,13 +151,14 @@ int open(const char *path, int flags, mode_t mode) {
     if (fd < 0) {
         return fd; // Return error code
     }
-    
+    if (flags == 0) { flags = 1; } // fix me
+
     file_descriptors[fd]->device = DEVICE_AHCI;
     file_descriptors[fd]->fs = FS_FAT;
     file_descriptors[fd]->access = mode;
     
     if (file_descriptors[fd]->fs == FS_FAT) {
-        fr = f_open(f, path, FA_READ);
+        fr = f_open(f, path, flags);
 serial_puts("incoming fd: ");
 serial_puthex(fd);
 serial_puts("incoming fr: ");
@@ -251,6 +252,8 @@ int close(int fd) {
         return E_INVALID_FD;
     }
     
+    FIL *fil = (FIL *)file_descriptors[fd]->private;
+    f_close(fil);
     release_fd(fd);
     pfree(&FatFs, (sizeof(FATFS) + PAGE_SIZE - 1) / PAGE_SIZE);
     return FILE_SUCCESS;
@@ -267,11 +270,6 @@ int read(int fd, char *buf, size_t count) {
     
     if (file_descriptors[fd]->fs == FS_FAT) {
         serial_puts("@@fsisfat");
-        
-        if (file_descriptors[fd]->pos == 0) {
-            serial_puts("@@filenotfound");
-            //return E_FILE_NOT_FOUND;
-        }
 
         FIL *fil = (FIL *)file_descriptors[fd]->private;
         uint32_t size = 0;
@@ -283,16 +281,36 @@ int read(int fd, char *buf, size_t count) {
         if (!data) {
             return E_FILE_READ_ERROR;
         }
-        
-        size_t bytes_to_read = (size < count) ? (size_t)size : count;
 
-        serial_puts("data buffer: ");
-        for (size_t i = 0; i < br; i++) {
-            serial_putc(buf[i]);
-            buf[i] = buf[i];
-        }
-        
         return br;
+    }
+    
+    return E_NOT_IMPLEMENTED;
+}
+
+int write(int fd, const char *buf, size_t count) {
+    if (fd < 0 || fd >= MAX_FILES || !file_descriptors[fd]->is_open) {
+        return E_INVALID_FD;
+    }
+    
+    if (!buf || count == 0) {
+        return E_INVALID_ARG;
+    }
+    
+    if (file_descriptors[fd]->fs == FS_FAT) {
+        serial_puts("@@fsisfat");
+
+        FIL *fil = (FIL *)file_descriptors[fd]->private;
+        uint32_t size = 0;
+        char data[100];
+        UINT bw;
+        FRESULT fr = f_write(fil, buf, count, &bw);
+
+        if (!data) {
+            return E_FILE_READ_ERROR;
+        }
+
+        return bw;
     }
     
     return E_NOT_IMPLEMENTED;
@@ -372,4 +390,15 @@ int stat(const char *path, stat_t *buf) { // TODO: fix
     //buf->st_ctime = mtime;  // FAT doesn't have creation time in same format
     return FILE_SUCCESS;
     return 0;
+}
+
+// sync all open files to disk
+int sync() {
+    for (int i = 0; i < MAX_FILES; i++) {
+        if (file_descriptors[i] != NULL && file_descriptors[i]->is_open) {
+            FIL *fil = (FIL *)file_descriptors[i]->private;
+            FRESULT res = f_sync(fil);
+            return (int)res;
+        }
+    }
 }
