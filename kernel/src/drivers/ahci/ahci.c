@@ -165,14 +165,14 @@ bool ahci_write(HBA_PORT *port, uint32_t start1, uint32_t starth, uint32_t count
 	if (slot == -1)
 		return false;
 
-	HBA_CMD_HEADER *cmdheader = (HBA_CMD_HEADER*)port->clb;
+	HBA_CMD_HEADER *cmdheader = (HBA_CMD_HEADER*)PHYS_TO_VIRT(port->clb);
 	cmdheader += slot;
 	cmdheader->cfl = sizeof(FIS_REG_H2D)/sizeof(uint32_t);
 	cmdheader->p = 1;
 	cmdheader->w = 1; // write to device
 	cmdheader->prdtl = (uint16_t)((count-1)>>4) + 1;
 
-	HBA_CMD_TBL *cmdtbl = (HBA_CMD_TBL*)(cmdheader->ctba);
+	HBA_CMD_TBL *cmdtbl = (HBA_CMD_TBL*)PHYS_TO_VIRT(cmdheader->ctba);
 	memset(cmdtbl, 0, sizeof(HBA_CMD_TBL) + 
 		(cmdheader->prdtl-1)*sizeof(HBA_PRDT_ENTRY));
 
@@ -255,11 +255,11 @@ bool ahci_write(HBA_PORT *port, uint32_t start1, uint32_t starth, uint32_t count
 	spin = 0;
 	while (port->ci & (1 << slot)) {
 	    if (port->is & HBA_PxIS_TFES) { // Task file error
-	        serial_puts("Read disk error\n");
+	        serial_puts("Write disk error\n");
 	        return false;
 	    }
 	    if (++spin > 10000000) { // timeout (adjust as needed)
-	        serial_puts("AHCI read timeout\n");
+	        serial_puts("AHCI write timeout\n");
 	        return false;
 	    }
 	}
@@ -268,7 +268,7 @@ bool ahci_write(HBA_PORT *port, uint32_t start1, uint32_t starth, uint32_t count
 	// Check again
 	if (port->is & HBA_PxIS_TFES)
 	{
-		serial_puts("Read disk error\n");
+		serial_puts("Write disk error\n");
 		return false;
 	}
 return true;
@@ -416,7 +416,7 @@ bool ahci_readblock(uint64_t lba, unsigned char *buffer, unsigned int num) {
     return true;
 }
 
-bool ahci_writeblock(uint64_t lba, unsigned char *buffer, unsigned int num) {
+bool ahci_writeblock(uint64_t lba, const unsigned char *buffer, unsigned int num) {
     if (!port) {
         // No SATA device found.
         return false;

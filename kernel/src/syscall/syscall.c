@@ -9,6 +9,7 @@
 #include "../drivers/fat/fat.h"
 #include "../fs/fs.h"
 #include "../mm/pmm.h"
+#include "../panic/panic.h"
 #include "../drivers/ahci/ahci.h"
 #include "../userspace/enter.h"
 #include "../buffer/buffer.h"
@@ -37,8 +38,7 @@ static inline uint64_t copy_from_user(const void *src, size_t len)
 {
     /* Allocate whole pages that can hold `len` bytes.  */
     void *k_mem = palloc((len + PAGE_SIZE - 1) / PAGE_SIZE, true);
-    if (!k_mem)                 /* allocation failed */
-        return 0;
+    if (!k_mem) { panik_no_mem(); return 0; }                 /* allocation failed */
 
     memcpy(k_mem, src, len);    /* copy the user data */
 
@@ -88,6 +88,11 @@ cpu_status_t* syscall_handler(cpu_status_t* regs) {
             break;
         case 1:
             // write
+            fd = regs->rdi; // file descriptor
+            count = regs->rdx; // number of bytes to write
+            const char* buff = (const char*)copy_from_user((const void*)regs->rsi, count); // buffer to write from
+            write(fd, buff, count);
+            regs->rax = count; // number of bytes written
             break;
         case 2:
             // open
@@ -178,6 +183,10 @@ cpu_status_t* syscall_handler(cpu_status_t* regs) {
             struct fb_info info = get_fb_info();
             void* user_fb_info = (void*)regs->rsi;  // user-space pointer to fb_info
             regs->rax = copy_to_user((uint64_t)&info, user_fb_info, sizeof(info));
+            break;
+        case 18:
+            // sync to disk
+            regs->rax = (uint64_t)sync();
             break;
         default:
             regs->rax = E_NO_SYSCALL;

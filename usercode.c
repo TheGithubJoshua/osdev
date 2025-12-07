@@ -178,6 +178,17 @@ static inline uint64_t sys_terminal_read(void) {
     return ret;
 }
 
+static inline uint64_t sys_sync(void) {
+    uint64_t ret;
+    asm volatile(
+        "int $0x69\n\t"
+        : "=a"(ret)
+        : "a"((uint64_t)18)
+        : "memory"
+    );
+    return ret;
+}
+
 /* return fd (or negative errno) */
 static inline long sys_open(const char *name, unsigned long flags, unsigned long mode) {
     long ret;
@@ -248,6 +259,25 @@ static inline long sys_read(int fd, char *buf, size_t size) {
           [p]   "r"((uint64_t)fd),
           [s]   "r"(buf),
           [d]   "r"(size)
+        : "rax", "rdi", "rsi", "rdx", "rcx", "r11", "memory"
+    );
+    return ret;
+}
+
+static inline long sys_write(int fd, const char *buf, size_t size) {
+    long ret;
+    asm volatile (
+        "mov %[num], %%rax\n\t"
+        "mov %[a1],  %%rdi\n\t"
+        "mov %[a2],  %%rsi\n\t"
+        "mov %[a3],  %%rdx\n\t"
+        "int $0x69\n\t"
+        "mov %%rax, %[ret]\n\t"
+        : [ret] "=r" (ret)
+        : [num] "r" ((unsigned long)1),          /* syscall number */
+          [a1]  "r" ((unsigned long)fd),
+          [a2]  "r" ((unsigned long)buf),
+          [a3]  "r" ((unsigned long)size)
         : "rax", "rdi", "rsi", "rdx", "rcx", "r11", "memory"
     );
     return ret;
