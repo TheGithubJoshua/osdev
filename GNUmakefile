@@ -120,7 +120,8 @@ run-hdd-uefi: ovmf/ovmf-code-x86_64.fd $(IMAGE_NAME).hdd
 
 ovmf/ovmf-code-x86_64.fd:
 	mkdir -p ovmf
-	curl -Lo $@ https://github.com/osdev0/edk2-ovmf-nightly/releases/latest/download/ovmf-code-x86_64.fd
+	curl -L https://github.com/osdev0/edk2-ovmf-nightly/releases/latest/download/edk2-ovmf.tar.gz \
+	  | tar -xz -C ovmf --strip-components=1 edk2-ovmf/ovmf-code-x86_64.fd
 
 limine/limine:
 	rm -rf limine
