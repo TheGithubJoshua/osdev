@@ -82,7 +82,6 @@ int read(int fd, char *buf, size_t count) {
 #include "fs.h"
 #include "../iodebug.h"
 #include "../mm/pmm.h"
-#include "../drivers/fat/fat.h"
 #include "../errno.h"
 #include <stdint.h>
 
@@ -95,7 +94,7 @@ int allocate_fd(void) {
 
             // Allocate only if it doesn't already exist
             if (file_descriptors[i] == NULL) {
-                file_descriptors[i] = palloc((sizeof(fd_t) + PAGE_SIZE - 1) / PAGE_SIZE, true);
+                file_descriptors[i] = (void*)palloc((sizeof(fd_t) + PAGE_SIZE - 1) / PAGE_SIZE, true);
                 if (!file_descriptors[i])
                     return ENOMEM;
             }
@@ -135,13 +134,13 @@ static int fs_mounted = 0;
 
 int open(const char *path, int flags, mode_t mode) {
     if (!fs_mounted) {
-    FatFs = palloc((sizeof(FATFS) + PAGE_SIZE - 1) / PAGE_SIZE, true);
+    FatFs = (void*)palloc((sizeof(FATFS) + PAGE_SIZE - 1) / PAGE_SIZE, true);
     FRESULT m = f_mount(FatFs, "", 1);
     serial_puts("f_mount result(2): ");
     serial_puthex(m);
     fs_mounted = 1;
 }
-    f = palloc((sizeof(FIL) + PAGE_SIZE - 1) / PAGE_SIZE, true);
+    f = (void*)palloc((sizeof(FIL) + PAGE_SIZE - 1) / PAGE_SIZE, true);
 
     if (!path) {
         return E_INVALID_ARG;
@@ -188,13 +187,13 @@ DIR* d;
 
 int opendir(const char *path) {
     if (!fs_mounted) {
-    FatFs = palloc((sizeof(FATFS) + PAGE_SIZE - 1) / PAGE_SIZE, true);
+    FatFs = (void*)palloc((sizeof(FATFS) + PAGE_SIZE - 1) / PAGE_SIZE, true);
     FRESULT m = f_mount(FatFs, "", 1);
     serial_puts("f_mount result(2): ");
     serial_puthex(m);
     fs_mounted = 1;
 }
-    d = palloc((sizeof(DIR) + PAGE_SIZE - 1) / PAGE_SIZE, true);
+    d = (void*)palloc((sizeof(DIR) + PAGE_SIZE - 1) / PAGE_SIZE, true);
 
     if (!path) {
         return E_INVALID_ARG;
@@ -255,7 +254,7 @@ int close(int fd) {
     FIL *fil = (FIL *)file_descriptors[fd]->private;
     f_close(fil);
     release_fd(fd);
-    pfree(&FatFs, (sizeof(FATFS) + PAGE_SIZE - 1) / PAGE_SIZE);
+    pfree(FatFs, (sizeof(FATFS) + PAGE_SIZE - 1) / PAGE_SIZE);
     return FILE_SUCCESS;
 }
 
@@ -343,53 +342,6 @@ off_t lseek(int fd, off_t offset, int whence) {
     
     file_descriptors[fd]->pos = new_pos;
     return new_pos;
-}
-
-int stat(const char *path, stat_t *buf) { // TODO: fix
-    if (!path || !buf) {
-        return E_INVALID_ARG;
-    }
-    
-    // Parse path to get file info
-    char parts[MAX_PARTS][256];
-    uint64_t part_count = split_string((char*)path, '/', parts);
-    
-    if (part_count == 0) {
-        return E_INVALID_PATH;
-    }
-    
-    // Get FAT directory entry
-    fat_dir_entry_t dir_entry;
-    fat_get_dir_entry(parts[part_count], parts, &dir_entry);
-    
-    // Convert FAT attributes to POSIX mode
-    mode_t mode = 0;
-    if (dir_entry.attr & FAT_ATTR_DIRECTORY) {
-        mode = S_IFDIR | 0755;  // Directory
-    } else {
-        mode = S_IFREG | 0644;  // Regular file
-    }
-    if (dir_entry.attr & FAT_ATTR_READONLY) {
-        mode &= ~0222;  // Remove write permissions
-    }
-    
-    // Convert FAT timestamps to Unix time (implement later™)
-    //time_t mtime = fat_time_to_unix(dir_entry.write_date, dir_entry.write_time);
-    //time_t atime = fat_time_to_unix(dir_entry.access_date, 0);
-    
-    // Fill stat structure
-    buf->st_mode = mode;
-    buf->st_size = dir_entry.size;
-    buf->st_blocks = (dir_entry.size + 511) / 512;  // Round up to 512-byte blocks
-    buf->st_blksize = 512;
-    buf->st_nlink = 1;
-    buf->st_uid = 0;
-    buf->st_gid = 0;
-    //buf->st_atime = atime;
-    //buf->st_mtime = mtime;
-    //buf->st_ctime = mtime;  // FAT doesn't have creation time in same format
-    return FILE_SUCCESS;
-    return 0;
 }
 
 // sync all open files to disk

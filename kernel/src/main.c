@@ -18,8 +18,6 @@
 #include "elf/elf.h"
 #include "thread/thread.h"
 #include "userspace/enter.h"
-#include "drivers/fat/fat.h"
-#include "drivers/nvme/nvme.h"
 #include "cpu/msr.h"
 //#include "liballoc/liballoc.h"
 #include "flanterm/backends/fb.h"
@@ -128,7 +126,7 @@ void int_to_str(int value, char *str) {
 
 void test_palloc() {
     struct flanterm_context *ft_ctx = flanterm_get_ctx();
-    void *ptr = palloc(1, true);  // Allocate 1 page, map to higher half
+    void *ptr = (void*)palloc(1, true);  // Allocate 1 page, map to higher half
 
     if (!ptr) {
         serial_puts("palloc() failed: returned NULL\n");
@@ -144,9 +142,9 @@ void test_palloc() {
 
     // Test reading back
     if (((uint8_t *)ptr)[0] != 0xAA) {
-        flanterm_write(ft_ctx, "\033[31mpalloc memory test failed: value mismatch!\033[0m\n", 47);
+        flanterm_write(ft_ctx, "palloc memory test failed: value mismatch!\033[0m\n", 39);
     } else {
-        flanterm_write(ft_ctx, "\033[32mpalloc memory test passed!\033[0m\n", 36);
+        flanterm_write(ft_ctx, "palloc memory test passed!\033[0m\n", 28);
         pfree(ptr, 1);
     }
 }
@@ -541,7 +539,6 @@ asm("int $0");
 serial_puts("hello \n");
 flanterm_write(ft_ctx, "Welcome!\n", 10);
 
-flanterm_write(ft_ctx, "\033[32m", 5);
 flanterm_write(flanterm_get_ctx(), "[INFO] CPU is ", 14);
 flanterm_write(flanterm_get_ctx(), get_model(), 12);
 flanterm_write(flanterm_get_ctx(), "!\n", 3);

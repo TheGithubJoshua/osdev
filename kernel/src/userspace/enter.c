@@ -4,7 +4,6 @@
 #include "../util/fb.h"
 #include "../elf/elf.h"
 #include "../buffer/buffer.h"
-#include "../drivers/fat/fat.h"
 #include "../iodebug.h"
 #include "enter.h"
 #include <stdbool.h>
@@ -33,12 +32,19 @@ void enter_userspace(const char *fn) {
 uint64_t stack_base_addr = (uint64_t)palloc((STACK_SIZE + PAGE_SIZE - 1) / PAGE_SIZE, false);
 serial_puts("stack base addr: ");
 serial_puthex(stack_base_addr);
-uint64_t virt_stack_addr = 0x7000000;
-map_page(read_cr3(), virt_stack_addr + 0x0000, stack_base_addr + 0x0000, PAGE_PRESENT | PAGE_WRITABLE | PAGE_USER | PAGE_NO_EXECUTE);
-map_page(read_cr3(), virt_stack_addr + 0x1000, stack_base_addr + 0x1000, PAGE_PRESENT | PAGE_WRITABLE | PAGE_USER | PAGE_NO_EXECUTE);
-map_page(read_cr3(), virt_stack_addr + 0x2000, stack_base_addr + 0x2000, PAGE_PRESENT | PAGE_WRITABLE | PAGE_USER | PAGE_NO_EXECUTE);
-map_page(read_cr3(), virt_stack_addr + 0x3000, stack_base_addr + 0x3000, PAGE_PRESENT | PAGE_WRITABLE | PAGE_USER | PAGE_NO_EXECUTE);
-map_page(read_cr3(), virt_stack_addr + 0x4000, stack_base_addr + 0x4000, PAGE_PRESENT | PAGE_WRITABLE | PAGE_USER | PAGE_NO_EXECUTE);
+uint64_t virt_stack_addr = find_address(STACK_SIZE);
+map_len(
+    read_cr3(),
+    virt_stack_addr,
+    virt_stack_addr,
+    PAGE_PRESENT | PAGE_WRITABLE | PAGE_USER | PAGE_NO_EXECUTE,   // length to map
+    STACK_SIZE // to future me: PF in libctest probably caused by stack being too small, stack size is now 8MiB, fix mapping (PF on first usermode instruction). update: i dont think it is, todo: test more
+);
+if(is_mapped(virt_stack_addr)) { 
+    serial_puts("user stack is mapped!");
+} else {
+    serial_puts("user stack is not mapped!");
+}
 
 //asm volatile ("mov %%rsp, %0" : "=r"(kernel_stack_top));
 stack_top = virt_stack_addr + STACK_SIZE - 8;

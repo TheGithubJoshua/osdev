@@ -2,6 +2,7 @@
 #include <stddef.h>
 #include <stdint.h>
 #include "iodebug.h"
+#include "panic/panic.h"
 #include "mm/pmm.h"
 #include "memory.h"
 
@@ -167,6 +168,7 @@ void map_page(uint64_t pml4_phys, uint64_t virtual_addr,
     pt_entry_t *pdpt;
     if (!(pml4[PML4_INDEX(virtual_addr)] & PAGE_PRESENT)) {
         pdpt = palloc(1, true);
+        if (!pdpt) panik_no_mem();
         memset(pdpt, 0, 512 * sizeof(pt_entry_t));
 
         uint64_t pdpt_phys = ((uint64_t)pdpt - get_phys_offset()) & ~0xFFFULL;
@@ -184,6 +186,7 @@ void map_page(uint64_t pml4_phys, uint64_t virtual_addr,
     pt_entry_t *pd;
     if (!(pdpt[PDPT_INDEX(virtual_addr)] & PAGE_PRESENT)) {
         pd = palloc(1, true);
+        if (!pd) panik_no_mem();
         memset(pd, 0, 512 * sizeof(pt_entry_t));
 
         uint64_t pd_phys = ((uint64_t)pd - get_phys_offset()) & ~0xFFFULL;
@@ -201,6 +204,7 @@ void map_page(uint64_t pml4_phys, uint64_t virtual_addr,
     pt_entry_t *pt;
     if (!(pd[PD_INDEX(virtual_addr)] & PAGE_PRESENT)) {
         pt = palloc(1, true);
+        if (!pt) panik_no_mem();
         memset(pt, 0, 512 * sizeof(pt_entry_t));
 
         uint64_t pt_phys = ((uint64_t)pt - get_phys_offset()) & ~0xFFFULL;

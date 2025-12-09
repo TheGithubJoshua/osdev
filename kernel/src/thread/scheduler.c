@@ -10,7 +10,6 @@
 #include "../drivers/xhci/xhci.h"
 #include "../memory.h"
 #include "../drivers/pci/pci.h"
-#include "../drivers/nvme/nvme.h"
 #include "../timer.h"
 
 volatile bool multitasking_initialized = false;

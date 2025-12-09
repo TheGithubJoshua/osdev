@@ -4,7 +4,6 @@
 #include <stdarg.h>
 #include "../util/fb.h"
 #include "timer.h"
-#include "../drivers/fat/fat.h"
 #include "../mm/pmm.h"
 #include "../iodebug.h"
 #include "buffer/buffer.h"

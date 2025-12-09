@@ -8,7 +8,6 @@
 #include "../memory.h"
 #include "../util/fb.h"
 #include "../panic/panic.h"
-#include "../drivers/fat/fat.h"
 #include "../syscall/syscall.h"
 #include "../drivers/pci/pci.h"
 //#include "../drivers/ahci/ahci.h"

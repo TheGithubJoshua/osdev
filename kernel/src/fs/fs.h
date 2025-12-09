@@ -38,7 +38,6 @@ typedef long time_t;
 #define FAT_ATTR_DIRECTORY  0x10
 
 #include <stddef.h>
-#include "../drivers/fat/fat.h"
 #include "../ff16/source/ff.h"
 
 typedef unsigned int mode_t;

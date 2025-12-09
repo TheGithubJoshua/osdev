@@ -35,14 +35,14 @@ void *laihost_realloc(void *ptr, size_t newsize, size_t oldsize) {
 	
 	if (ptr == (void *)0)
 	{
-	    return palloc(newsizepg, true);
+	    return (void*)palloc(newsizepg, true);
 	}
 	if (newsize == 0)
 	{
 	    pfree(ptr, true);
 	    return 0;
 	}
-	void *ret = palloc(newsizepg, true);
+	void *ret = (void*)palloc(newsizepg, true);
 	memcpy(ret, ptr, oldsize);
 	pfree(ptr, oldsizepg);
 	return ret;

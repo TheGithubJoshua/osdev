@@ -7,7 +7,6 @@
 #include "../../interrupts/interrupts.h"
 #include "../../drivers/xhci/xhci.h"
 #include <lai/core.h>
-#include "../nvme/nvme.h"
 #include <stdbool.h>
 
 pci_device_t **pci_devices = 0;
@@ -111,7 +110,6 @@ void pci_probe() {
                 const char *device_type = "Unknown";
                 if (class_id == 0x01 && subclass_id == 0x08 && prog_if == 0x02) {
                     device_type = "NVMe Controller";
-                    nvme_base_addr = get_nvme_base_address(bus, slot, function);
                 } else if (class_id == 0x01 && subclass_id == 0x06) {
                     device_type = "SATA Controller";
                     // i should check if the SATA controller is in IDE emulation mode or AHCI mode.

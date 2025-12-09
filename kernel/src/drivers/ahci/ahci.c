@@ -2,8 +2,8 @@
 #include "../../thread/thread.h"
 #include "../../iodebug.h"
 #include "../../timer.h"
+#include "../../panic/panic.h"
 #include "../../mm/pmm.h"
-#include "../fat/fat.h"
 #include "../../fs/fs.h"
 #include "../../util/fb.h"
 #include "../../ff16/source/ff.h"
@@ -382,7 +382,7 @@ bool ahci_read(HBA_PORT *port, uint32_t startl, uint32_t starth, uint32_t count,
 	        return false;
 	    }
 	}
-	serial_puts("past loop!");
+	//serial_puts("past loop!");
 
 	// Check again
 	if (port->is & HBA_PxIS_TFES)
@@ -514,50 +514,16 @@ void init_ahci(uint32_t abar) {
 	    serial_puts("Read failed.\n");
 	}
 	*/
-	unsigned int cluster;
-	if (fat_getpartition()) {
-    // 11 bytes 8.3 name, last 3 for extension.
-    static const char fn[11] = {
-        'T','E','S','T',' ',' ',' ',' ','T','X','T'
-    };
-    static const char fn2[11] = {
-    	'S','U','B','D','I','R','~','1','T','X','T'
-	};
-	char *fd = fat_read("subdir/subdir2/abc.txt", 0);
-	serial_puts("filedata.: ");
-	for (size_t i = 0; i < 20; i++) {
-	    serial_putc(fd[i]); // print each byte in hex
-	    //serial_puts(" ");
-	}
-	serial_puts("\n");
-	
-}
 
-char *path = "test.txt";
-int fd = open("test.txt", ACCESS_READ, 0);  // flags, mode
-if (fd < 0) {
-    serial_puts("open failed :(\n");
-    return;
-}
-
-char buf[70];
-int bytes_read = read(fd, buf, 69);
-if (bytes_read > 0) { 
-    buf[bytes_read] = '\0';  // Null terminate for serial_puts
-    serial_puts("read success!\n");
-    serial_puts("buf: ");
-    serial_puts(buf);
-} else if (bytes_read == 0) {
-    serial_puts("EOF reached\n");
-} else {
-    serial_puts("read failed :(\n");
-}
-close(fd);
-
-stat_t file_stat_t;
-stat("test.txt", &file_stat_t);
-serial_puts("size (from fstat): ");
-serial_puthex(file_stat_t.st_size);
+FATFS* FatFS = (void*)palloc((sizeof(FATFS) + PAGE_SIZE - 1) / PAGE_SIZE, true);
+flanterm_write(flanterm_get_ctx(), "\033[0m", 4); // reset colour
+flanterm_write(flanterm_get_ctx(), "[FS] Mounting filesystem...", 27);
+flanterm_write(flanterm_get_ctx(), "\n", 1);
+FRESULT m = f_mount(FatFS, "", 1);
+if (m == 0) {
+	flanterm_write(flanterm_get_ctx(), "[FS] Filesystem mounted successfully!", 37);
+	flanterm_write(flanterm_get_ctx(), "\n", 1);
+} else { panik("Filesystem mount failure!"); }
 
 //unsigned char buf[512];
 //ahci_readblock(0, buf, 1);

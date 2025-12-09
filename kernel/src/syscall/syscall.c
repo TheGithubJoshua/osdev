@@ -1,12 +1,10 @@
 #include "../iodebug.h"
-#include "../drivers/fat/fat.h"
 #include "../memory.h"
 #include <lai/helpers/pm.h>
 #include "../util/fb.h"
 #include "../timer.h"
 #include "../drivers/cmos/rtc.h"
 #include "../ff16/source/ff.h"
-#include "../drivers/fat/fat.h"
 #include "../fs/fs.h"
 #include "../mm/pmm.h"
 #include "../panic/panic.h"

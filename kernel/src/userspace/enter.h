@@ -3,11 +3,11 @@
 #include <stdint.h>
 
 #define TSS_SELECTOR (5 * 8)  // GDT selectors are index * 8
-#define STACK_SIZE 0x4000
+#define STACK_SIZE 0x800000 // 8M
 
 #define USER_CODE_VADDR 0x400000
 
-#define KERNEL_STACK_SIZE 0x4000 // 16KB
+#define KERNEL_STACK_SIZE 0x4000 // 16K
 
 // Declare gdtr but don't define it here
 /*typedef struct {

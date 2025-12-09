@@ -4,7 +4,6 @@
 #include "../thread/thread.h"
 #include "../mm/pmm.h"
 #include "../userspace/enter.h"
-#include "../drivers/fat/fat.h"
 #include <limine.h>
 #include <stddef.h>
 #include <stdint.h>
@@ -196,7 +195,7 @@ static int elf_load_stage1(Elf64_Ehdr *hdr) {
 			// If the section should appear in memory
 			if(section->sh_flags & SHF_ALLOC) {
 				// Allocate and zero some memory
-				void *mem = palloc(section->sh_size, true);
+				void *mem = (void*)palloc(section->sh_size, true);
 				memset(mem, 0, section->sh_size);
 
 				// Assign the memory offset to the section offset
@@ -211,10 +210,6 @@ static int elf_load_stage1(Elf64_Ehdr *hdr) {
 static inline Elf64_Phdr *elf_program_header(Elf64_Ehdr *hdr, int idx) {
     return (Elf64_Phdr *)((uint8_t *)hdr + hdr->e_phoff) + idx;
 }
-
-#define PAGE_SIZE 0x1000
-#define ALIGN_DOWN(x) ((x) & ~(PAGE_SIZE - 1))
-#define ALIGN_UP(x)   (((x) + PAGE_SIZE - 1) & ~(PAGE_SIZE - 1))
 
 void *elf_load_exec(Elf64_Ehdr *hdr) {
 
@@ -239,8 +234,8 @@ void *elf_load_exec(Elf64_Ehdr *hdr) {
         if (ph->p_type != PT_LOAD)
             continue;
 
-        uint64_t start = ALIGN_DOWN(ph->p_vaddr);
-        uint64_t end = ALIGN_UP(ph->p_vaddr + ph->p_memsz);
+        uint64_t start = ALIGN_DOWN(ph->p_vaddr, PAGE_SIZE);
+        uint64_t end = ALIGN_UP(ph->p_vaddr + ph->p_memsz, PAGE_SIZE);
         if (end == start) end = start + PAGE_SIZE; // map at least one page
 
         for (uint64_t addr = start; addr < end; addr += PAGE_SIZE) {
@@ -338,6 +333,8 @@ serial_puthex((uint64_t)(uintptr_t)entry);
 Elf64_Phdr *phdrs = (Elf64_Phdr *)((uint8_t *)ehdr + ehdr->e_phoff);
 uint64_t min_vaddr = UINT64_MAX;
 uint64_t max_vaddr = 0;
+off_t misalign;
+size_t page_count, maplen;
 
 serial_puts("Mapped ELF segments:\n");
 serial_puts(" VADDR      FILESZ  MEMSZ  FLAGS\n");
@@ -346,22 +343,21 @@ for (int i = 0; i < ehdr->e_phnum; i++) {
     if (ph->p_type != PT_LOAD) continue;
 
     uint64_t seg_start = PAGE_FLOOR(ph->p_vaddr);
-    uint64_t seg_end   = ALIGN_UP(ph->p_vaddr + ph->p_memsz);
+    uint64_t seg_end   = PAGE_CEIL(ph->p_vaddr + ph->p_memsz);
 
-    /*for (uint64_t addr = seg_start; addr < seg_end; addr += 0x1000) {
+    for (uint64_t addr = seg_start; addr < seg_end; addr += 0x1000) {
         uint64_t phys = (uint64_t)palloc(1, false); // Allocate physical memory
         uint64_t flags = PAGE_PRESENT | PAGE_WRITABLE | PAGE_USER;
         map_page(pml4_phys_addr, addr, phys, flags);
-    }*/
-
-    uint64_t misalign = ph->p_vaddr & (PAGE_SIZE - 1);
-    uint64_t maplen = ALIGN_UP(ph->p_memsz + misalign);
-    uint64_t page_count = maplen / PAGE_SIZE;
+    }
+    /*misalign = ph->p_vaddr & (PAGE_SIZE - 1);
+    maplen = ALIGN_UP(ph->p_memsz + misalign, PAGE_SIZE);
+    page_count = maplen / PAGE_SIZE;
 
     uint64_t phys = (uint64_t)palloc(page_count, false);
     uint64_t flags = PAGE_PRESENT | PAGE_WRITABLE | PAGE_USER;
-    map_len(pml4_phys_addr, PAGE_FLOOR(ph->p_vaddr), phys, flags, page_count);
-
+    map_len(pml4_phys_addr, ph->p_vaddr, phys, flags, maplen);
+*/
     // Now copy segment data and zero .bss
     void *dest = (void *)(uintptr_t)ph->p_vaddr;
     void *src = (uint8_t *)ehdr + ph->p_offset;
@@ -430,14 +426,6 @@ if (entry != NULL) {
 void load_elf_from_disk(const char fn[11]) {
 
 task_exit();
-}
-
-// demo of loading elf from disk
-void load_module_from_disk() {
-	const char *fn = "module";
-	char *fd = fat_read(fn, 0);
-	load_elf(fd, true);
-	task_exit();
 }
 
 uint64_t get_size_of_elf() {

@@ -15,6 +15,8 @@
 #define PAGE_NO_EXECUTE (1ULL << 63)
 #define PAGE_EXECUTE 0ULL // why not
 
+#define PAGE_MASK (PAGE_SIZE - 1)
+
 #define PAGE_WRITE_EXEC (PAGE_PRESENT | PAGE_WRITABLE)
 
 #define MAP_PRIVATE   0x02
@@ -39,10 +41,10 @@
 
 /* Align up/down a value */
 #define ALIGN_DOWN(value, align)      ((value) & ~((align)-1))
-#define ALIGN_UP(value, align)        (((value) + (align)-1) & ~((align)-1))
+#define ALIGN_UP(x, align) (((x) + (align) - 1) & ~((align) - 1))
 #define MALIGN(value)                 ALIGN_UP((value), M_WORD_SIZE)
-#define PAGE_FLOOR(addr)  ((addr) & ~(PAGE_SIZE - 1ULL))
-#define PAGE_CEIL(addr)   (((addr) + PAGE_SIZE - 1ULL) & ~(PAGE_SIZE - 1ULL))
+#define PAGE_FLOOR(x) ((x) & ~PAGE_MASK)
+#define PAGE_CEIL(x)  (((x) + PAGE_MASK) & ~PAGE_MASK)
 #define PAGE_ALIGNED(addr)  (((addr) & (PAGE_SIZE - 1ULL)) == 0)
 
 #define ISSET(v, f)  ((v) & (f))

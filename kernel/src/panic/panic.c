@@ -137,3 +137,14 @@ void panik_no_mem() {
 	asm volatile ("cli");
 	asm volatile ("hlt");
 }
+
+void panik(const char* msg) {
+	flanterm_write(flanterm_get_ctx(), "\033[91m", strlenn("\033[91m"));
+	flanterm_write(flanterm_get_ctx(), msg, strlenn(msg));
+	flanterm_write(flanterm_get_ctx(), "\n", 1);
+	flanterm_write(flanterm_get_ctx(), "\n", 1);
+	flanterm_write(flanterm_get_ctx(), "\033[0m", 4);   // reset color
+	flanterm_write(flanterm_get_ctx(), "\n", 1);
+	asm volatile ("cli");
+	asm volatile ("hlt");
+}
