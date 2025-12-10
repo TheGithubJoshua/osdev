@@ -6,6 +6,7 @@
 #include "../../mm/pmm.h"
 #include "../../fs/fs.h"
 #include "../../util/fb.h"
+#include "../../mm/vmm.h"
 #include "../../ff16/source/ff.h"
 #include "../../memory.h"
 #include <stdint.h>
@@ -531,4 +532,12 @@ if (m == 0) {
 unsigned char d[512];
 serial_puts("testing readblock...\n");
 ahci_readblock(0, d, 1);
+
+void* virt_mem = vmm_alloc(69000, VM_FLAG_WRITE, NULL);
+serial_puts("virt_mem: ");
+serial_puthex((uint64_t)virt_mem);
+void* virt_mem2 = vmm_alloc(69, VM_FLAG_WRITE, NULL);
+serial_puts("virt_mem2: ");
+serial_puthex((uint64_t)virt_mem2);
+vm_free(virt_mem);
 }

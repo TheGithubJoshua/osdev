@@ -301,3 +301,32 @@ int is_mapped(uint64_t virtual_addr) {
 
     return 1;
 }
+
+uint64_t get_phys(uint64_t virtual_addr) {
+    uint64_t pml4_phys = read_cr3() & ~0xFFFULL;
+    uint64_t *pml4 = (uint64_t *)(pml4_phys + get_phys_offset());
+    
+    uint64_t e = pml4[PML4_INDEX(virtual_addr)];
+    if (!(e & PAGE_PRESENT))
+        return 0;
+    uint64_t pdpt_phys = e & 0x000FFFFFFFFFF000ULL;
+    
+    uint64_t *pdpt = (uint64_t *)(pdpt_phys + get_phys_offset());
+    e = pdpt[PDPT_INDEX(virtual_addr)];
+    if (!(e & PAGE_PRESENT))
+        return 0;
+    uint64_t pd_phys = e & 0x000FFFFFFFFFF000ULL;
+    
+    uint64_t *pd = (uint64_t *)(pd_phys + get_phys_offset());
+    e = pd[PD_INDEX(virtual_addr)];
+    if (!(e & PAGE_PRESENT))
+        return 0;
+    uint64_t pt_phys = e & 0x000FFFFFFFFFF000ULL;
+    
+    uint64_t *pt = (uint64_t *)(pt_phys + get_phys_offset());
+    e = pt[PT_INDEX(virtual_addr)];
+    if (!(e & PAGE_PRESENT))
+        return 0;
+    
+    return (e & 0x000FFFFFFFFFF000ULL) | (virtual_addr & 0xFFFULL);
+}

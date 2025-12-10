@@ -14,4 +14,6 @@
 void pmm_init();
 void* palloc(size_t count, bool higher_half);
 void pfree(void* frameptr, size_t count);
+uint64_t get_usable_mem_base();
+uint64_t get_usable_mem_max();
 #endif // PMM_H

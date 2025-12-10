@@ -55,8 +55,7 @@ uint64_t load_program(int filedesc) {
 	serial_puthex(elf_size);
 	//elf_size += 0x2000; // fix me
 	// Map the page to userspace address, readable + executable + user access
-	void* phys_page = palloc((elf_size + PAGE_SIZE - 1) / PAGE_SIZE, false); // alloc physical // to future me: memory allocator is broken here and returns higher-half memory that is filled with something that resembles the libctest. update: I ripped out the whole fucking memory allocator :)
-// to future me: after ripping out the memory allocator and replacing it with one that worked properly so I could use bigger stack, the 8MiB stack just chnaged the faulting address, so prolly faults something on stack idk todo: test
+	void* phys_page = palloc((elf_size + PAGE_SIZE - 1) / PAGE_SIZE, false); // alloc physical
 	// start virtual address of user code
 	user_code_vaddr = find_address(elf_size);
 	serial_puts("user_code_vaddr: ");

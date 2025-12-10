@@ -1,3 +1,4 @@
+#pragma once
 #include <stddef.h>
 #include <stdint.h>
 #include <stdbool.h>
@@ -86,3 +87,4 @@ pt_entry_t *get_pml4_table(uint64_t pml4_phys);
 int is_mapped(uint64_t virtual_addr);
 size_t strlenn(const char *s);
 void map_len(uint64_t pml4_phys, uint64_t virtual_addr, uint64_t physical_addr, uint64_t flags, size_t len);
+uint64_t get_phys(uint64_t virtual_addr);

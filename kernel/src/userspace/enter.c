@@ -1,5 +1,6 @@
 #include "memory.h"
 #include "../mm/pmm.h"
+#include "../mm/vmm.h"
 #include "../ff16/source/ff.h"
 #include "../util/fb.h"
 #include "../elf/elf.h"
@@ -36,10 +37,11 @@ uint64_t virt_stack_addr = find_address(STACK_SIZE);
 map_len(
     read_cr3(),
     virt_stack_addr,
-    virt_stack_addr,
+    stack_base_addr,
     PAGE_PRESENT | PAGE_WRITABLE | PAGE_USER | PAGE_NO_EXECUTE,   // length to map
-    STACK_SIZE // to future me: PF in libctest probably caused by stack being too small, stack size is now 8MiB, fix mapping (PF on first usermode instruction). update: i dont think it is, todo: test more
+    STACK_SIZE
 );
+//uint64_t virt_stack_addr = (uint64_t)vmm_alloc(STACK_SIZE, VM_FLAG_WRITE | VM_FLAG_USER, NULL);
 if(is_mapped(virt_stack_addr)) { 
     serial_puts("user stack is mapped!");
 } else {

@@ -63,6 +63,40 @@ bool checkbit(size_t idx) {
     return bitmap[idx / 32] & (1 << (idx % 32));
 }
 
+uint64_t get_usable_mem_base(void) {
+    uint64_t base = UINT64_MAX;  // start high so we find the minimum
+
+    for (size_t i = 0; i < memmap_request.response->entry_count; i++) {
+        struct limine_memmap_entry *ent = memmap_request.response->entries[i];
+
+        if (ent->type == LIMINE_MEMMAP_USABLE) {
+            if (ent->base < base) {
+                base = ent->base;
+            }
+        }
+    }
+
+    return (base == UINT64_MAX) ? 0 : base; // if none found, return 0 or handle error
+}
+
+uint64_t get_usable_mem_max(void) {
+    uint64_t maxtopaddr = 0;
+
+    for (size_t i = 0; i < memmap_request.response->entry_count; i++) {
+        struct limine_memmap_entry *ent = memmap_request.response->entries[i];
+
+        if (ent->type == LIMINE_MEMMAP_USABLE) {
+            uint64_t topaddr = ent->base + ent->length;
+
+            if (topaddr > maxtopaddr) {
+                maxtopaddr = topaddr;
+            }
+        }
+    }
+
+    return maxtopaddr;
+}
+
 void pmm_init(void) {
     if (memmap_request.response == NULL) panik("null memmap response.");
 
