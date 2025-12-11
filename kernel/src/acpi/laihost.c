@@ -1,4 +1,4 @@
-#include "/home/joshua/instant-gratification/kernel/src/lai/include/lai/host.h"
+#include "../lai/include/lai/host.h"
 #include "../iodebug.h"
 #include "../mm/pmm.h"
 #include "../memory.h"

@@ -7,6 +7,7 @@
 #include "../../fs/fs.h"
 #include "../../util/fb.h"
 #include "../../mm/vmm.h"
+#include "../../mm/liballoc.h"
 #include "../../ff16/source/ff.h"
 #include "../../memory.h"
 #include <stdint.h>
@@ -289,8 +290,8 @@ bool ahci_read(HBA_PORT *port, uint32_t startl, uint32_t starth, uint32_t count,
 	cmdheader->w = 0;		// Read from device
 	cmdheader->prdtl = (uint16_t)((count-1)>>4) + 1;	// PRDT entries count
 
-    map_page(read_cr3(), cmdheader->ctba, cmdheader->ctba, PAGE_PRESENT | PAGE_WRITABLE | PAGE_USER | PAGE_NO_EXECUTE);
-	HBA_CMD_TBL *cmdtbl = (HBA_CMD_TBL*)PHYS_TO_VIRT((cmdheader->ctba));
+    quickmap(cmdheader->ctba,cmdheader->ctba);	
+    HBA_CMD_TBL *cmdtbl = (HBA_CMD_TBL*)PHYS_TO_VIRT((cmdheader->ctba));
 	memset(cmdtbl, 0, sizeof(HBA_CMD_TBL)+(cmdheader->prdtl-1)*sizeof(HBA_PRDT_ENTRY));
 
 	// 8K bytes (16 sectors) per PRDT
@@ -532,12 +533,4 @@ if (m == 0) {
 unsigned char d[512];
 serial_puts("testing readblock...\n");
 ahci_readblock(0, d, 1);
-
-void* virt_mem = vmm_alloc(69000, VM_FLAG_WRITE, NULL);
-serial_puts("virt_mem: ");
-serial_puthex((uint64_t)virt_mem);
-void* virt_mem2 = vmm_alloc(69, VM_FLAG_WRITE, NULL);
-serial_puts("virt_mem2: ");
-serial_puthex((uint64_t)virt_mem2);
-vm_free(virt_mem);
 }

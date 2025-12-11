@@ -117,4 +117,5 @@ void vm_free(void* addr) {
     }
 
     // base not found
+    return;
 }

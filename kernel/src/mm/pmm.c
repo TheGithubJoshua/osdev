@@ -136,7 +136,7 @@ void pmm_init(void) {
 }
 
 void* palloc(size_t count, bool higher_half) {
-    if (count == 0) panik("allocated 0 page frames.");
+    //if (count == 0) panik("allocated 0 page frames.");
     if (count > totalpages) panik_no_mem();
 
     for (size_t i = 0; i + count <= totalpages; i++) {
