@@ -95,7 +95,7 @@ cpu_status_t* syscall_handler(cpu_status_t* regs) {
         case 2:
             // open
             open_flags = regs->rsi; // flags for opening
-            mode = (mode_t)regs->rdx; // mode for opening
+            mode = 0; // mode for opening
             path = (char*)copy_from_user((const void*)regs->rdi, 12); // path to file
             //open(path, open_flags, mode);
             create_task(openfile);
@@ -106,7 +106,7 @@ cpu_status_t* syscall_handler(cpu_status_t* regs) {
         case 3:
             // close
             fd = regs->rdi; // file descriptor to close
-            close(fd);
+            regs->rax = close(fd);
             break;
         case 4:
             // map memory

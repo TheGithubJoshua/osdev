@@ -37,6 +37,23 @@ typedef long time_t;
 #define FAT_ATTR_READONLY   0x01
 #define FAT_ATTR_DIRECTORY  0x10
 
+// POSIX flags
+#define O_RDONLY 0
+#define O_WRONLY 1
+#define O_RDWR   2
+#define O_APPEND 0x0008
+#define O_CREAT  0x0200
+#define O_TRUNC  0x0400
+#define O_EXCL   0x0800
+
+#define FD_STDIN   0
+#define FD_STDOUT  1
+#define FD_STDERR  2
+
+#define FATFS_TO_ERRNO(fr) \
+    (((unsigned)(fr) < ARRAY_SIZE(fatfs_errno_map)) \
+        ? fatfs_errno_map[(fr)] : EIO)
+
 #include <stddef.h>
 #include "../ff16/source/ff.h"
 

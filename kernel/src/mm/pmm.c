@@ -42,24 +42,24 @@ static inline bool is_aligned(void *addr, size_t align)
 void setbit(size_t idx) {
     if (!bitmap) panik("no bitmap");
     size_t totalwords = size / sizeof(uint32_t);
-    if (idx / 32 >= totalwords)
-        panik("index out of bounds");
+    //if (idx / 32 >= totalwords)
+        //panik("index out of bounds");
     bitmap[idx / 32] |= (1 << (idx % 32));
 }
 
 void unsetbit(size_t idx) {
     if (!bitmap) panik("no bitmap");
     size_t totalwords = size / sizeof(uint32_t);
-    if (idx / 32 >= totalwords)
-        panik("index out of bounds");
+    //if (idx / 32 >= totalwords)
+        //panik("index out of bounds");
     bitmap[idx / 32] &= ~(1 << (idx % 32));
 }
 
 bool checkbit(size_t idx) {
     if (!bitmap) panik("no bitmap");
     size_t totalwords = size / sizeof(uint32_t);
-    if (idx / 32 >= totalwords)
-        panik("index out of bounds");
+    //if (idx / 32 >= totalwords)
+        //panik("index out of bounds");
     return bitmap[idx / 32] & (1 << (idx % 32));
 }
 

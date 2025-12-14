@@ -537,7 +537,7 @@ void cmd_ls(const char *args) {
     //print_u32(nfile);
     //print(" files.\n");
 }
-
+#define O_RDONLY 0
 void cmd_cat(const char *args) {
     if (!args) {
         sys_serial_puts("cat: no filename\n");
@@ -547,7 +547,7 @@ void cmd_cat(const char *args) {
     sys_serial_puts("catting file: ");
     sys_serial_puts(args);
 
-    unsigned long flags = (unsigned long)FA_READ;
+    unsigned long flags = O_RDONLY;
     unsigned long mode = 0; /* if not used, pass 0 */
 
     long fd = sys_open(args, flags, mode);

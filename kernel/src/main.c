@@ -16,6 +16,7 @@
 #include "util/fb.h"
 #include "memory.h"
 #include "elf/elf.h"
+#include "fs/fs.h"
 #include "thread/thread.h"
 #include "userspace/enter.h"
 #include "cpu/msr.h"

@@ -1,89 +1,70 @@
 /* totally useful and posix compliant VFS fr */
-/*#include "fs.h"
-#include "../iodebug.h"
-#include "../errno.h"
-#include <stdint.h>
-fd_t file_descriptors[MAX_FILES];
-int allocate_fd() {
-    for (int i = 0; i < MAX_FILES; i++) {
-        if (!file_descriptors[i].is_open) {
-            file_descriptors[i].is_open = 1;
-            return i;
-        }
-    }
-    return E_TOO_MANY_FILES; // No available FD
-}
-void release_fd(int fd) {
-    if (fd >= 0 && fd <= MAX_FILES) {
-        file_descriptors[fd].is_open = 0;
-    }
-}
-int open(char path, int flags, mode_t mode) {
-    int fd = allocate_fd();
-    file_descriptors[fd].device = DEVICE_AHCI; // assume AHCI for now
-    file_descriptors[fd].fs = FS_FAT; // assume FAT for now
-    file_descriptors[fd].access = mode;
-    if(file_descriptors[fd].fs == FS_FAT) {
-    // parse path
-    char parts[MAX_PARTS][256];
-    uint64_t part_count = split_string(path, '/', parts);
-    serial_puts("parts: ");
-    serial_puts((const char)parts[part_count - 1]);
-    char *fn;
-    // read
-    unsigned int cluster = fat_getcluster(fn, parts);
-    file_descriptors[fd].pos = cluster;
-    // set size later
-    return fd;
-}
-if (file_descriptors[fd].pos == E_FILE_READ_ERROR) {
-    release_fd(fd);
-    return E_FILE_READ_ERROR;
-}
-release_fd(fd);
-return fd;
-}
-int close(int fd) {
-    file_descriptors[fd].device = 0;
-    file_descriptors[fd].fs = 0;
-    file_descriptors[fd].access = 0;
-    file_descriptors[fd].device = 0;
-    file_descriptors[fd].pos = 0;
-    file_descriptors[fd].size = 0;
-    file_descriptors[fd].access = 0;
-    release_fd(fd);
-    return FILE_SUCCESS; // return success for now 
-}
-int read(int fd, char *buf, size_t count) {
-    uint32_t size = 0;
-    char *data;
-    if (file_descriptors[fd].fs == FS_FAT) {
-        serial_puts("@@fsisfat");
-        if (file_descriptors[fd].pos == 0) {
-            serial_puts("@@filenotfound");
-            return E_FILE_NOT_FOUND;
-        }
-        data = fat_readfile(file_descriptors[fd].pos, size); // read cluster chain at pos
-    }
-    size_t i;
-    serial_puts("da buffer: ");
-    for (i = 0; i < count; i++) {
-        serial_putc(data[i]); // print each byte in hex
-        buf[i] = data[i]; // stream file into buf up to count
-    }
-    buf[count+1] = 0; // 0 to indicate end
-    if (buf == NULL) {
-        return E_FILE_READ_ERROR;
-    }
-    return i;
-}
-*/
-/* VFS implementation with proper error handling and structure */
 #include "fs.h"
 #include "../iodebug.h"
 #include "../mm/pmm.h"
 #include "../errno.h"
 #include <stdint.h>
+
+BYTE posix_to_fatfs_mode(int flags) {
+    BYTE mode = 0;
+
+    // Access mode
+    switch (flags & 0x3) { // mask O_RDONLY, O_WRONLY, O_RDWR
+        case O_RDONLY:
+            mode |= FA_READ;
+            break;
+        case O_WRONLY:
+            mode |= FA_WRITE;
+            break;
+        case O_RDWR:
+            mode |= FA_READ | FA_WRITE;
+            break;
+    }
+
+    // Creation flags
+    if (flags & O_CREAT) {
+        if (flags & O_EXCL) {
+            mode |= FA_CREATE_NEW;      // fail if exists
+        } else if (flags & O_TRUNC) {
+            mode |= FA_CREATE_ALWAYS;   // truncate existing
+        } else {
+            mode |= FA_OPEN_ALWAYS;     // open or create
+        }
+    } else {
+        mode |= FA_OPEN_EXISTING;       // default: open existing
+    }
+
+    // Append mode
+    if (flags & O_APPEND) {
+        mode &= ~(FA_CREATE_ALWAYS | FA_CREATE_NEW); // override creation
+        mode |= FA_OPEN_APPEND | FA_WRITE;
+    }
+
+    return mode;
+}
+
+static const int fatfs_errno_map[] = {
+    [FR_OK]                   = 0,
+    [FR_DISK_ERR]             = EIO,
+    [FR_INT_ERR]              = EIO,
+    [FR_NOT_READY]            = ENODEV,
+    [FR_NO_FILE]              = ENOENT,
+    [FR_NO_PATH]              = ENOENT,
+    [FR_INVALID_NAME]         = EINVAL,
+    [FR_DENIED]               = EACCES,
+    [FR_EXIST]                = EEXIST,
+    [FR_INVALID_OBJECT]       = EBADF,
+    [FR_WRITE_PROTECTED]      = EROFS,
+    [FR_INVALID_DRIVE]        = ENODEV,
+    [FR_NOT_ENABLED]          = ENXIO,
+    [FR_NO_FILESYSTEM]        = ENODEV,
+    [FR_MKFS_ABORTED]         = ECANCELED,
+    [FR_TIMEOUT]              = ETIMEDOUT,
+    [FR_LOCKED]               = EBUSY,
+    [FR_NOT_ENOUGH_CORE]      = ENOMEM,
+    [FR_TOO_MANY_OPEN_FILES]  = EMFILE,
+    [FR_INVALID_PARAMETER]    = EINVAL,
+};
 
 fd_t* file_descriptors[MAX_FILES];
 
@@ -112,7 +93,7 @@ int allocate_fd(void) {
         }
     }
 
-    return E_TOO_MANY_FILES;
+    return ENFILE;
 }
 
 
@@ -143,25 +124,27 @@ int open(const char *path, int flags, mode_t mode) {
     f = (void*)palloc((sizeof(FIL) + PAGE_SIZE - 1) / PAGE_SIZE, true);
 
     if (!path) {
-        return E_INVALID_ARG;
+        return -EINVAL;
     }
     
     int fd = allocate_fd();
     if (fd < 0) {
-        return fd; // Return error code
+        return -fd; // Return error code
     }
-    if (flags == 0) { flags = 1; } // fix me
 
     file_descriptors[fd]->device = DEVICE_AHCI;
     file_descriptors[fd]->fs = FS_FAT;
     file_descriptors[fd]->access = mode;
     
     if (file_descriptors[fd]->fs == FS_FAT) {
-        fr = f_open(f, path, flags);
-serial_puts("incoming fd: ");
-serial_puthex(fd);
-serial_puts("incoming fr: ");
-serial_puthex(fr);
+        fr = f_open(f, path, posix_to_fatfs_mode(flags));
+        serial_puts("incoming fd: ");
+        serial_puthex(fd);
+        serial_puts("incoming fr: ");
+        serial_puthex(fr);
+        if (fr != FR_OK) {
+            return -fatfs_errno_map[fr];
+        }
 
         file_descriptors[fd]->is_open = 1;
         file_descriptors[fd]->device  = f->obj.fs->pdrv;      /* or whatever identifies the drive */
@@ -176,7 +159,7 @@ serial_puthex(fr);
     
     // Other filesystems not implemented
     release_fd(fd);
-    return E_NOT_IMPLEMENTED;
+    return -ENOSYS;
 }
 
 unsigned int get_size(int fd) {
@@ -209,10 +192,13 @@ int opendir(const char *path) {
     
     if (file_descriptors[fd]->fs == FS_FAT) {
         fr = f_opendir(d, path);
-serial_puts("incoming fd: ");
-serial_puthex(fd);
-serial_puts("incoming fr: ");
-serial_puthex(fr);
+        serial_puts("incoming fd: ");
+        serial_puthex(fd);
+        serial_puts("incoming fr: ");
+        serial_puthex(fr);
+        if (fr != FR_OK) {
+            return -fatfs_errno_map[fr];
+        }
 
         file_descriptors[fd]->is_open = 1;
         file_descriptors[fd]->device  = d->obj.fs->pdrv;      /* or whatever identifies the drive */
@@ -231,7 +217,7 @@ serial_puthex(fr);
 
 int readdir(int fd, FILINFO* fno) {
     if (fd < 0 || fd >= MAX_FILES || !file_descriptors[fd]->is_open) {
-        return E_INVALID_FD;
+        return -EINVAL;
     }
     
     if (file_descriptors[fd]->fs == FS_FAT) {
@@ -239,16 +225,17 @@ int readdir(int fd, FILINFO* fno) {
 
         DIR *d = (DIR *)file_descriptors[fd]->private;
         FRESULT fr = f_readdir(d, fno);
-        
-        return fr;
+        if (fr != FR_OK) {
+            return -fatfs_errno_map[fr];
+        } else { return fr; }
     }
     
-    return E_NOT_IMPLEMENTED;
+    return -ENOSYS;
 }
 
 int close(int fd) {
     if (fd < 0 || fd >= MAX_FILES || !file_descriptors[fd]->is_open) {
-        return E_INVALID_FD;
+        return -EINVAL;
     }
     
     FIL *fil = (FIL *)file_descriptors[fd]->private;
@@ -260,11 +247,11 @@ int close(int fd) {
 
 int read(int fd, char *buf, size_t count) {
     if (fd < 0 || fd >= MAX_FILES || !file_descriptors[fd]->is_open) {
-        return E_INVALID_FD;
+        return -EINVAL;
     }
     
     if (!buf || count == 0) {
-        return E_INVALID_ARG;
+        return -EINVAL;
     }
     
     if (file_descriptors[fd]->fs == FS_FAT) {
@@ -272,28 +259,25 @@ int read(int fd, char *buf, size_t count) {
 
         FIL *fil = (FIL *)file_descriptors[fd]->private;
         uint32_t size = 0;
-        char data[100];
         UINT br;
         FRESULT fr = f_read(fil, buf, count, &br);
-
-
-        if (!data) {
-            return E_FILE_READ_ERROR;
+        if (fr != FR_OK) {
+            return -fatfs_errno_map[fr];
         }
 
         return br;
     }
     
-    return E_NOT_IMPLEMENTED;
+    return -ENOSYS;
 }
 
 int write(int fd, const char *buf, size_t count) {
     if (fd < 0 || fd >= MAX_FILES || !file_descriptors[fd]->is_open) {
-        return E_INVALID_FD;
+        return -EINVAL;
     }
     
     if (!buf || count == 0) {
-        return E_INVALID_ARG;
+        return -EINVAL;
     }
     
     if (file_descriptors[fd]->fs == FS_FAT) {
@@ -301,23 +285,21 @@ int write(int fd, const char *buf, size_t count) {
 
         FIL *fil = (FIL *)file_descriptors[fd]->private;
         uint32_t size = 0;
-        char data[100];
         UINT bw;
         FRESULT fr = f_write(fil, buf, count, &bw);
-
-        if (!data) {
-            return E_FILE_READ_ERROR;
+        if (fr != FR_OK) {
+            return -fatfs_errno_map[fr];
         }
 
         return bw;
     }
     
-    return E_NOT_IMPLEMENTED;
+    return -ENOSYS;
 }
 
 off_t lseek(int fd, off_t offset, int whence) {
     if (fd < 0 || fd >= MAX_FILES || !file_descriptors[fd]->is_open) {
-        return E_INVALID_FD;
+        return -EINVAL;
     }
     
     off_t new_pos;
@@ -333,11 +315,11 @@ off_t lseek(int fd, off_t offset, int whence) {
             new_pos = file_descriptors[fd]->size + offset;
             break;
         default:
-            return E_INVALID_ARG;
+            return -EINVAL;
     }
     
     if (new_pos < 0) {
-        return E_INVALID_ARG;
+        return -EINVAL;
     }
     
     file_descriptors[fd]->pos = new_pos;
@@ -345,12 +327,16 @@ off_t lseek(int fd, off_t offset, int whence) {
 }
 
 // sync all open files to disk
-int sync() {
+int sync(void) {
+    int ret = 0;
     for (int i = 0; i < MAX_FILES; i++) {
-        if (file_descriptors[i] != NULL && file_descriptors[i]->is_open) {
-            FIL *fil = (FIL *)file_descriptors[i]->private;
-            FRESULT res = f_sync(fil);
-            return (int)res;
+        if (file_descriptors[i] && file_descriptors[i]->is_open) {
+            FIL *fil = file_descriptors[i]->private;
+            FRESULT fr = f_sync(fil);
+            if (fr != FR_OK) {
+                return -fatfs_errno_map[fr];
+            }
         }
     }
+    return ret;
 }
