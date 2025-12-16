@@ -4,6 +4,7 @@
 #include <stdarg.h>
 #include "../util/fb.h"
 #include "timer.h"
+#include "../thread/thread.h"
 #include "../mm/pmm.h"
 #include "../iodebug.h"
 #include "buffer/buffer.h"
@@ -12,6 +13,12 @@
 #include "keyboard.h"
 #include "flanterm/backends/fb.h"
 #include "font.c"
+
+#define KBD_BUF_SIZE 256
+
+static char kbd_buf[KBD_BUF_SIZE];
+static volatile size_t kbd_head = 0;
+static volatile size_t kbd_tail = 0;
 
 static inline int strcmp(const char *s1, const char *s2) {
     while (*s1 && (*s1 == *s2)) {
@@ -133,6 +140,16 @@ unsigned char kb_us_shifted[128] =
     0,  /* All other keys are undefined */
 };      
 
+char keyboard_getchar(void) {
+    while (kbd_head == kbd_tail) {
+        //yield();
+    }
+
+    char c = kbd_buf[kbd_tail];
+    kbd_tail = (kbd_tail + 1) % KBD_BUF_SIZE;
+    return c;
+}
+
 /* Handles the keyboard interrupt */
 void keyboard_handler() {
     linebuf_t* in = fetch_linebuffer();
@@ -169,6 +186,12 @@ void keyboard_handler() {
         struct flanterm_context *ft_ctx = flanterm_get_ctx();
         if (!ft_ctx) return;
         flanterm_write(ft_ctx, buf, 1);
+        
+        size_t next = (kbd_head + 1) % KBD_BUF_SIZE;
+        if (next != kbd_tail) {
+            kbd_buf[kbd_head] = kb_us[scancode];
+            kbd_head = next;
+        }
 
         if (buf[0] != '\0') {
             // Add character to buffer if it's not a null character

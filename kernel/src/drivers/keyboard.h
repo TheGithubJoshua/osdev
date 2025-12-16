@@ -3,3 +3,4 @@
 #define BACKSPACE 8
 
 void keyboard_handler();
+char keyboard_getchar(void);

@@ -6,19 +6,18 @@ section .text
 ; void switch_to_task(task_t *next)
 ; RDI = pointer to next task
 switch_to_task:
-    ; Load the pointer stored in current_task into RAX
-    mov     rax, [current_task]   ; current_task points to the current task
-    mov     [rax], rsp            ; Save current RSP into current_task->rsp
+    ; Save current task's RSP and FX state
+    mov     rax, [current_task]
+    mov     [rax], rsp
+    lea     rdx, [rax + 32]
+    fxsave  [rdx]
 
-    ; Set current_task = next
+    ; Switch current_task pointer
     mov     [current_task], rdi
 
-    ; Load CR3 from next->cr3
-    ;mov     rax, [rdi + 16]            ; cr3 offset (rsp is at +0, cr3 at +8)
-    ;mov     cr3, rax                  ; switch address space
-
-    ; Load new RSP from next->rsp
+    ; Load new task's RSP and FX state
     mov     rsp, [rdi]
+    lea     rdx, [rdi + 32]
+    fxrstor [rdx]
 
-    ; Return into new task
     ret

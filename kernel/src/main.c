@@ -18,12 +18,15 @@
 #include "elf/elf.h"
 #include "fs/fs.h"
 #include "thread/thread.h"
+#include "drivers/keyboard.h"
 #include "userspace/enter.h"
 #include "cpu/msr.h"
 //#include "liballoc/liballoc.h"
 #include "flanterm/backends/fb.h"
 #include "interrupts/apic.h"
 #include "font.c"
+
+extern void enable_sse(void);
 
 uintptr_t kernel_stack_top;
 uint8_t kernel_stack[KERNEL_STACK_SIZE] __attribute__((aligned(16)));
@@ -499,7 +502,8 @@ asm volatile ("lgdt %0" :: "m"(new_gdtr));
     rsdp_t *rsdp = get_acpi_table();
     struct xsdt_t *xsdt = get_xsdt_table();
     fadt_t *fadt = get_fadt(get_xsdt_table());
-
+    
+    enable_sse();
     init_flanterm();
     struct flanterm_context *ft_ctx = flanterm_get_ctx();                                                        
     flanterm_write(flanterm_get_ctx(), "\033[38;2;0;160;255m", 18);

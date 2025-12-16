@@ -50,6 +50,10 @@ typedef long time_t;
 #define FD_STDOUT  1
 #define FD_STDERR  2
 
+#define TYPE_STDIN 2
+#define TYPE_STDOUT 3
+#define TYPE_STDERR 4
+
 #define FATFS_TO_ERRNO(fr) \
     (((unsigned)(fr) < ARRAY_SIZE(fatfs_errno_map)) \
         ? fatfs_errno_map[(fr)] : EIO)
@@ -67,6 +71,7 @@ typedef struct fd {
 	int pos;
 	size_t offset;
 	mode_t access;
+    const char *path;
     void *private;  // store FIL*
 } fd_t;
 
@@ -90,7 +95,7 @@ int close(int fd);
 int read(int fd, char *buf, size_t count);
 int write(int fd, const char *buf, size_t count);
 off_t lseek(int fd, off_t offset, int whence);
-int stat(const char *path, stat_t *buf);
+int fstat(int fd, stat_t *st);
 int opendir(const char *path);
 int readdir(int fd, FILINFO* fno);
 unsigned int get_size(int fd);

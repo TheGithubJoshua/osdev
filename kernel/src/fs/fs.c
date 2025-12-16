@@ -2,8 +2,15 @@
 #include "fs.h"
 #include "../iodebug.h"
 #include "../mm/pmm.h"
+#include "../drivers/keyboard.h"
+#include "../buffer/buffer.h"
+#include "../util/fb.h"
+#include "../thread/thread.h"
 #include "../errno.h"
 #include <stdint.h>
+#include <stddef.h>
+
+void init_stdio(void);
 
 BYTE posix_to_fatfs_mode(int flags) {
     BYTE mode = 0;
@@ -69,7 +76,8 @@ static const int fatfs_errno_map[] = {
 fd_t* file_descriptors[MAX_FILES];
 
 int allocate_fd(void) {
-    for (int i = 0; i < MAX_FILES; i++) {
+    init_stdio(); // test
+    for (int i = 3; i < MAX_FILES; i++) {
         // Check if slot is empty or not open
         if (file_descriptors[i] == NULL || !file_descriptors[i]->is_open) {
 
@@ -106,6 +114,89 @@ void release_fd(int fd) {
         file_descriptors[fd]->size = 0;
         file_descriptors[fd]->access = 0;
     }
+}
+
+void init_stdio(void) {
+    // Allocate only if it doesn't already exist
+    if (file_descriptors[FD_STDIN] == NULL)
+        file_descriptors[FD_STDIN] = (void*)palloc((sizeof(fd_t) + PAGE_SIZE - 1) / PAGE_SIZE, true);
+
+    fd_t *stdin = file_descriptors[FD_STDIN];
+    stdin->is_open = 1;
+    stdin->device = 0;
+    stdin->fs = TYPE_STDIN;
+    stdin->pos = 0;
+    stdin->size = 0;
+    stdin->offset = 0;
+    stdin->access = 0;
+
+    if (file_descriptors[FD_STDOUT] == NULL)
+        file_descriptors[FD_STDOUT] = (void*)palloc((sizeof(fd_t) + PAGE_SIZE - 1) / PAGE_SIZE, true);
+
+    fd_t *stdout = file_descriptors[FD_STDOUT];
+    stdout->is_open = 1;
+    stdout->device = 0;
+    stdout->fs = TYPE_STDOUT;
+    stdout->pos = 0;
+    stdout->size = 0;
+    stdout->offset = 0;
+    stdout->access = 0;
+
+    if (file_descriptors[FD_STDERR] == NULL)
+        file_descriptors[FD_STDERR] = (void*)palloc((sizeof(fd_t) + PAGE_SIZE - 1) / PAGE_SIZE, true);
+
+    fd_t *stderr = file_descriptors[FD_STDERR];
+    stderr->is_open = 1;
+    stderr->device = 0;
+    stderr->fs = TYPE_STDERR;
+    stderr->pos = 0;
+    stderr->size = 0;
+    stderr->offset = 0;
+    stderr->access = 0;
+}
+
+
+size_t stdin_read(char *out, size_t count) {
+    if (!out || count == 0)
+        return -1;
+
+    linebuf_t *lb = fetch_linebuffer();
+
+    /* Block until newline is present */
+    for (;;) {
+        for (size_t i = 0; i < lb->len; i++) {
+            if (lb->buf[i] == '\n')
+                goto have_line;
+        }
+        yield();
+    }
+
+have_line:
+    size_t copied = 0;
+
+    while (copied < count) {
+        int c = lb_read(lb);
+        if (c < 0)
+            break;
+
+        out[copied++] = (char)c;
+
+        if (c == '\n')
+            break;
+    }
+
+    return (size_t)copied;
+}
+
+size_t stdout_write(const char *buf, size_t count) {
+    if (!buf)
+        return -1;
+
+    if (count == 0)
+        return 0;
+
+    flanterm_write(flanterm_get_ctx(), buf, count);
+    return (size_t)count;
 }
 
 FIL *f;
@@ -152,6 +243,7 @@ int open(const char *path, int flags, mode_t mode) {
         file_descriptors[fd]->pos     = f->fptr;
         file_descriptors[fd]->offset  = 0;                    /* or logical offset within FS */
         file_descriptors[fd]->access  = f->flag;              /* convert FatFs flags to mode_t bits */
+        file_descriptors[fd]->path    = path; // fking fstat
         file_descriptors[fd]->private = f;
         
         return fd;
@@ -266,6 +358,8 @@ int read(int fd, char *buf, size_t count) {
         }
 
         return br;
+    } else if (file_descriptors[fd]->fs == TYPE_STDIN) {
+        stdin_read(buf, count);
     }
     
     return -ENOSYS;
@@ -292,6 +386,8 @@ int write(int fd, const char *buf, size_t count) {
         }
 
         return bw;
+    } else if (file_descriptors[fd]->fs == TYPE_STDOUT) {
+        return stdout_write(buf, count);
     }
     
     return -ENOSYS;
@@ -324,6 +420,51 @@ off_t lseek(int fd, off_t offset, int whence) {
     
     file_descriptors[fd]->pos = new_pos;
     return new_pos;
+}
+
+int fstat(int fd, stat_t *st) {
+    if (fd < 0 || fd >= MAX_FILES || !file_descriptors[fd] || !file_descriptors[fd]->is_open) {
+        return -EINVAL;
+    }
+
+    if (!st) return -EINVAL;
+
+    fd_t *file = file_descriptors[fd];
+
+    if (file->fs != FS_FAT) {
+        return -ENOSYS;
+    }
+
+    FILINFO fno;
+    const char *path = file_descriptors[fd]->path;
+
+    FIL *fil = (FIL *)file->private;
+    if (!fil) return -EBADF;
+
+    FRESULT res = f_stat(path, &fno);
+    if (res != FR_OK) {
+        return -fatfs_errno_map[res];
+    }
+
+    /* Fill POSIX stat struct */
+    st->st_size = fno.fsize;
+    st->st_mode = 0;
+
+    if (fno.fattrib & AM_DIR) {
+        st->st_mode |= S_IFDIR | 0755;  // directory with rwxr-xr-x
+        st->st_nlink = 2;               // directories usually have link count 2+
+    } else {
+        st->st_mode |= S_IFREG | 0644;  // regular file with rw-r--r--
+        st->st_nlink = 1;
+    }
+
+    st->st_atime = 0; // todo
+    st->st_mtime = 0;
+    st->st_ctime = 0;
+    st->st_uid   = 0;
+    st->st_gid   = 0;
+
+    return 0;
 }
 
 // sync all open files to disk

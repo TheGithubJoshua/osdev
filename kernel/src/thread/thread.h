@@ -9,7 +9,8 @@ typedef struct task_t {
     uint64_t *rsp;         // Saved kernel stack pointer (RSP) for this task
     struct task_t *next;   // Next task in the circular ready queue
     uint8_t state;         // Task state (e.g., RUNNING or READY)
-    uint64_t wake_time;    // 
+    uint64_t wake_time;    //
+    char fxsave_region[512] __attribute__((aligned(16))); 
 } task_t;
 
 enum { TASK_RUNNING, TASK_READY, DEAD, SLEEPING };
