@@ -160,6 +160,7 @@ typedef struct {
 typedef void (*entry_t)(void);
 
 entry_t load_elf(void* file, bool exec);
+void unload_elf(void *file);
 void load_elf_from_disk(const char fn[11]);
 void load_first_elf_from_disk();
 void load_module_from_disk();

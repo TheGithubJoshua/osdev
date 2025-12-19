@@ -210,8 +210,8 @@ void task_free() {
         }
 
         // Free stack and TCB
-        pfree((void*)dead->rsp, true);  // Only if stack is page-allocated
-        pfree((void*)dead, true);
+        pfree((void*)dead->rsp, 1);  // Only if stack is page-allocated
+        pfree((void*)dead, 1);
 
         debug_task_list();
     }

@@ -58,6 +58,8 @@ typedef long time_t;
     (((unsigned)(fr) < ARRAY_SIZE(fatfs_errno_map)) \
         ? fatfs_errno_map[(fr)] : EIO)
 
+#define IS_LEAP(y) (((y) % 4 == 0) && (((y) % 100 != 0) || ((y) % 400 == 0))) // is a given year a leap year
+
 #include <stddef.h>
 #include "../ff16/source/ff.h"
 
@@ -75,18 +77,26 @@ typedef struct fd {
     void *private;  // store FIL*
 } fd_t;
 
-typedef struct {
-    mode_t st_mode;
-    off_t st_size;
-    long st_blocks;
-    long st_blksize;
-    int st_nlink;
-    int st_uid;
-    int st_gid;
-    time_t st_atime;
-    time_t st_mtime;
-    time_t st_ctime;
-} stat_t;
+struct timespec {
+    time_t  tv_sec;         /* seconds */
+    long    tv_nsec;        /* and nanoseconds */
+};
+
+struct stat {
+    uint64_t st_dev;      /* dev_t     */
+    uint64_t st_ino;      /* ino_t     */
+    uint32_t st_mode;     /* mode_t    */
+    uint64_t st_nlink;    /* nlink_t   */
+    uint32_t st_uid;      /* uid_t     */
+    uint32_t st_gid;      /* gid_t     */
+    uint64_t st_rdev;     /* dev_t     */
+    int64_t  st_size;     /* off_t     */
+    int64_t  st_blksize;  /* blksize_t */
+    int64_t  st_blocks;   /* blkcnt_t  */
+    struct timespec st_atim; /* Last data access timestamp. */
+    struct timespec st_mtim; /* Last data modification timestamp. */
+    struct timespec st_ctim; /* Last file status change timestamp. */
+};
 
 int allocate_fd();
 void release_fd(int fd);
@@ -95,7 +105,7 @@ int close(int fd);
 int read(int fd, char *buf, size_t count);
 int write(int fd, const char *buf, size_t count);
 off_t lseek(int fd, off_t offset, int whence);
-int fstat(int fd, stat_t *st);
+int fstat(int fd, struct stat *st);
 int opendir(const char *path);
 int readdir(int fd, FILINFO* fno);
 unsigned int get_size(int fd);

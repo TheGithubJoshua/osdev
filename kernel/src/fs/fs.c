@@ -50,6 +50,35 @@ BYTE posix_to_fatfs_mode(int flags) {
     return mode;
 }
 
+static const int mdays[] = { 31,28,31,30,31,30,31,31,30,31,30,31 };
+
+struct timespec fat_to_timespec(uint16_t fdate, uint16_t ftime)
+{
+    int y  = ((fdate >> 9) & 0x7F) + 1980;
+    int m  = ((fdate >> 5) & 0x0F) - 1;
+    int d  =  (fdate & 0x1F) - 1;
+
+    int hh = (ftime >> 11) & 0x1F;
+    int mm = (ftime >> 5)  & 0x3F;
+    int ss = (ftime & 0x1F) * 2;
+
+    int64_t days = 0;
+
+    for (int yr = 1970; yr < y; yr++)
+        days += 365 + IS_LEAP(yr);
+
+    for (int i = 0; i < m; i++)
+        days += mdays[i] + (i == 1 && IS_LEAP(y));
+
+    days += d;
+
+    struct timespec ts;
+    ts.tv_sec  = days * 86400 + hh * 3600 + mm * 60 + ss;
+    ts.tv_nsec = 0;   /* FAT has 2-second resolution */
+
+    return ts;
+}
+
 static const int fatfs_errno_map[] = {
     [FR_OK]                   = 0,
     [FR_DISK_ERR]             = EIO,
@@ -333,7 +362,6 @@ int close(int fd) {
     FIL *fil = (FIL *)file_descriptors[fd]->private;
     f_close(fil);
     release_fd(fd);
-    pfree(FatFs, (sizeof(FATFS) + PAGE_SIZE - 1) / PAGE_SIZE);
     return FILE_SUCCESS;
 }
 
@@ -422,7 +450,7 @@ off_t lseek(int fd, off_t offset, int whence) {
     return new_pos;
 }
 
-int fstat(int fd, stat_t *st) {
+int fstat(int fd, struct stat *st) {
     if (fd < 0 || fd >= MAX_FILES || !file_descriptors[fd] || !file_descriptors[fd]->is_open) {
         return -EINVAL;
     }
@@ -446,8 +474,7 @@ int fstat(int fd, stat_t *st) {
         return -fatfs_errno_map[res];
     }
 
-    /* Fill POSIX stat struct */
-    st->st_size = fno.fsize;
+    /* fill stat struct */
     st->st_mode = 0;
 
     if (fno.fattrib & AM_DIR) {
@@ -456,11 +483,15 @@ int fstat(int fd, stat_t *st) {
     } else {
         st->st_mode |= S_IFREG | 0644;  // regular file with rw-r--r--
         st->st_nlink = 1;
+        st->st_size = fno.fsize; // size invalid for dirs
     }
 
-    st->st_atime = 0; // todo
-    st->st_mtime = 0;
-    st->st_ctime = 0;
+    struct timespec mtim = fat_to_timespec(fno.fdate, fno.ftime);
+    struct timespec crtim = fat_to_timespec(fno.crdate, fno.crtime);
+    
+    // no atim
+    st->st_mtim = mtim;
+    st->st_ctim = crtim;
     st->st_uid   = 0;
     st->st_gid   = 0;
 

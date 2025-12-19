@@ -4,6 +4,7 @@
 
 #define TSS_SELECTOR (5 * 8)  // GDT selectors are index * 8
 #define STACK_SIZE 0x800000 // 8M
+#define STACK_PAGES (STACK_SIZE / 4096)
 
 #define USER_CODE_VADDR 0x400000
 

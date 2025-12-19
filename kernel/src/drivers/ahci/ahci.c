@@ -534,7 +534,4 @@ unsigned char d[512];
 serial_puts("testing readblock...\n");
 ahci_readblock(0, d, 1);
 int fd = open("test", O_RDWR, 0);
-stat_t stat = {0,0,0,0,0,0,0,0,0,0};
-fstat(fd, &stat);
-asm volatile ("nop");
 }

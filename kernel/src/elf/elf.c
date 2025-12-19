@@ -423,6 +423,23 @@ if (entry != NULL) {
 //task_exit();
 }
 
+void unload_elf(void *file) {
+	Elf64_Ehdr *ehdr = file;
+	Elf64_Phdr *phdrs = (Elf64_Phdr *)((uint8_t *)ehdr + ehdr->e_phoff);
+
+	for (int i = 0; i < ehdr->e_phnum; i++) {
+	    Elf64_Phdr *ph = &phdrs[i];
+	    if (ph->p_type != PT_LOAD) continue;
+
+	    uint64_t seg_start = PAGE_FLOOR(ph->p_vaddr);
+	    uint64_t seg_end   = PAGE_CEIL(ph->p_vaddr + ph->p_memsz);
+
+	    for (uint64_t addr = seg_start; addr < seg_end; addr += 0x1000) {
+	        pfree((void*)get_phys(addr), 1); // free physical memory
+	    }
+	}
+}
+
 void load_elf_from_disk(const char fn[11]) {
 
 task_exit();
