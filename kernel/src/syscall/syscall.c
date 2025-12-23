@@ -276,11 +276,9 @@ cpu_status_t* syscall_handler(cpu_status_t* regs) {
                 envp_copy
             );
 
-            // set the GPRs
-            regs->rdi = argc;                           // argc = 2
-            regs->rsi = (uint64_t)(stack_top + 1);       // &argv[0]
-            regs->rdx = (uint64_t)(stack_top + argc + 2); // &envp[0]
-            regs->rbp = 0;
+            // reset heap
+            task_t *t = get_current_task();
+            t->heap_end = t->heap_start;
             
             // Free the kernel copies after setup_stack is done
             for (int i = 0; i < argc; i++) free(argv_copy[i]);
@@ -290,8 +288,16 @@ cpu_status_t* syscall_handler(cpu_status_t* regs) {
             regs->iret_rsp = (uint64_t)stack_top;
             regs->iret_rip = entry;
             regs->rax = 0;
+            // set the GPRs
+            regs->rdi = argc;                           // argc = 2
+            regs->rsi = (uint64_t)argv[0];       // &argv[0]
+            regs->rdx = (uint64_t)envp[0]; // &envp[0]
+            regs->rbp = 0;
             break;
         }
+        case 21:
+            regs->rax = (uint64_t)sbrk(regs->rdi);
+            break;
         default:
             regs->rax = E_NO_SYSCALL;
             break;

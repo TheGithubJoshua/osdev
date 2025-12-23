@@ -23,78 +23,58 @@ void openfile2() { // why
     task_exit();
 }
 
-uintptr_t setup_stack(void *stack_top, char **argvp, char** envp) {
-    char *sp = (char *)stack_top;
-    int argc = 0;
-    int envc = 0;
+uintptr_t setup_stack(void *stack_top, char **argvp, char **envp)
+{
+    char *sp = stack_top;
+    int argc = 0, envc = 0;
 
-    // 1. Calculate counts
-    while (argvp[argc]) argc++;
-    while (envp[envc]) envc++;
+    while (argvp && argvp[argc]) argc++;
+    while (envp && envp[envc]) envc++;
 
-    // 2. Prepare temp arrays to hold the *final* stack addresses of strings.
-    // We use VLA (Variable Length Arrays) here for simplicity. 
     uintptr_t argv_addrs[argc];
     uintptr_t envp_addrs[envc];
 
-    // 3. Copy ENVP strings to stack (High Address)
-    // We iterate forward, but the stack grows down. 
-    for (int i = 0; i < envc; ++i) {
+    // Copy envp strings
+    for (int i = envc - 1; i >= 0; --i) {
         size_t len = strlenn(envp[i]) + 1;
-        sp -= len;                 // Move stack down by bytes
-        memcpy(sp, envp[i], len);  // Copy string
-        envp_addrs[i] = (uintptr_t)sp; // Save this address for later
+        sp -= len;
+        memcpy(sp, envp[i], len);
+        envp_addrs[i] = (uintptr_t)sp;
     }
 
-    // 4. Copy ARGV strings to stack
-    for (int i = 0; i < argc; ++i) {
+    // Copy argv strings
+    for (int i = argc - 1; i >= 0; --i) {
         size_t len = strlenn(argvp[i]) + 1;
         sp -= len;
         memcpy(sp, argvp[i], len);
-        argv_addrs[i] = (uintptr_t)sp; // Save this address for later
+        argv_addrs[i] = (uintptr_t)sp;
     }
 
-    // 5. Align the stack pointer to 16 bytes
-    // (This ensures the string block ends at a 16-byte boundary)
-    sp = (void *)ALIGN_DOWN((uintptr_t)sp, 16);
+    // Align down BEFORE pushing pointers
+    sp = (char *)((uintptr_t)sp & ~0xF);
 
-    // 6. Padding for alignment
-    // The final structure we push is:
-    // argc(1) + argv(argc) + NULL(1) + envp(envc) + NULL(1)
-    // Total 8-byte slots = 3 + argc + envc.
-    // If total slots is odd, RSP will end up 8-byte aligned but not 16-byte aligned.
-    // We want RSP to be 16-byte aligned at the end.
-    if (((3 + argc + envc) & 1) != 0) {
-        sp -= 8; // Add a padding slot
-    }
-
-    // 7. Setup Pointers
-    // Switch to uintptr_t pointer arithmetic for writing 8-byte values
     uintptr_t *usp = (uintptr_t *)sp;
 
-    // Push NULL (End of envp)
-    *(--usp) = 0;
+    // AUXV
+    *(--usp) = 0; // AT_NULL value
+    *(--usp) = 0; // AT_NULL key
 
-    // Push envp pointers (Reverse order so envp[0] is lowest address)
-    for (int i = envc - 1; i >= 0; --i) {
+    // envp NULL
+    *(--usp) = 0;
+    for (int i = envc - 1; i >= 0; --i)
         *(--usp) = envp_addrs[i];
-    }
 
-    // Push NULL (End of argv)
+    // argv NULL
     *(--usp) = 0;
-
-    // Push argv pointers
-    for (int i = argc - 1; i >= 0; --i) {
+    for (int i = argc - 1; i >= 0; --i)
         *(--usp) = argv_addrs[i];
-    }
 
-    // Push argc
-    STACK_PUSH(usp, argc);
+    // argc
+    *(--usp) = argc;
 
-    // 8. Return new Stack Pointer
-    if (((uintptr_t)usp % 16) == 0) {
-        usp -= 1; // push an extra 8-byte slot for padding
-    }
+    if (((uintptr_t)usp & 0xF) != 8)
+        usp--;
+
     return (uintptr_t)usp;
 }
 

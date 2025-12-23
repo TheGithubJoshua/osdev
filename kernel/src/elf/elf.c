@@ -335,6 +335,7 @@ uint64_t min_vaddr = UINT64_MAX;
 uint64_t max_vaddr = 0;
 off_t misalign;
 size_t page_count, maplen;
+uintptr_t prog_end = 0;
 
 serial_puts("Mapped ELF segments:\n");
 serial_puts(" VADDR      FILESZ  MEMSZ  FLAGS\n");
@@ -344,6 +345,7 @@ for (int i = 0; i < ehdr->e_phnum; i++) {
 
     uint64_t seg_start = PAGE_FLOOR(ph->p_vaddr);
     uint64_t seg_end   = PAGE_CEIL(ph->p_vaddr + ph->p_memsz);
+    if (seg_end > prog_end) prog_end = seg_end;
 
     for (uint64_t addr = seg_start; addr < seg_end; addr += 0x1000) {
         uint64_t phys = (uint64_t)palloc(1, false); // Allocate physical memory
@@ -387,6 +389,16 @@ for (int i = 0; i < ehdr->e_phnum; i++) {
         max_vaddr = seg_end;
 
 }
+
+// --------------------------
+// Set up the task heap immediately after BSS
+// --------------------------
+uintptr_t heap_start = (prog_end + PAGE_SIZE - 1) & ~(PAGE_SIZE-1);  // page-align
+uintptr_t heap_end   = heap_start;
+task_t *task = get_current_task();
+task->heap_start = heap_start;
+task->heap_end   = heap_end;
+
 uint64_t total_segment_size = max_vaddr - min_vaddr;
 elf_size = total_segment_size;
 

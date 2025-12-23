@@ -6,6 +6,8 @@
 #include "../elf/elf.h"
 #include "../userspace/enter.h"
 #include "../syscall/syscall.h"
+#include "../mm/vmm.h"
+#include "../mm/liballoc.h"
 #include "../drivers/ahci/ahci.h"
 #include "../drivers/xhci/xhci.h"
 #include "../memory.h"
@@ -125,6 +127,37 @@ debug_task_list();
     }
 }
 
+uint64_t find_heap(uint64_t start, uint64_t end, uint64_t length) {
+    // Align length to page size
+    if (length & (PAGE_SIZE - 1))
+        length = (length + PAGE_SIZE - 1) & ~(PAGE_SIZE - 1);
+
+    uint64_t needed_pages = length / PAGE_SIZE;
+
+    uint64_t run_start = 0;
+    uint64_t run_pages = 0;
+
+    for (uint64_t addr = start; addr + PAGE_SIZE <= end; addr += PAGE_SIZE)
+    {
+        if (!is_mapped(addr))
+        {
+            if (run_pages == 0)
+                run_start = addr;
+
+            run_pages++;
+
+            if (run_pages >= needed_pages)
+                return run_start;
+        }
+        else
+        {
+            run_pages = 0;
+        }
+    }
+
+    return 0; // no suitable region found
+}
+
 #define STACK_SIZE_def 8192
 
 /// Create a new task that starts at `entry()`
@@ -171,6 +204,11 @@ task_t *create_task(void (*entry)(void)) {
     /*uint64_t phys_pml4 = (uint64_t)pml4 - get_phys_offset();
     t->cr3 = phys_pml4;*/
     rsp = (uint64_t *)((uintptr_t)rsp & ~0xF);
+
+    // 2c) setup heap
+    //uint64_t heap_addr = (uint64_t)malloc(HEAP_MAX);
+    //t->heap_start = heap_addr;
+    //t->heap_end = heap_addr;
 
     // 3) splice into the existing circle
     if (!current_task) {
@@ -237,6 +275,10 @@ void task_sleep(task_t* task, size_t sleep) {
 void* taskptr;
 void task_create_wrap(void (*entry)(void)) {
     taskptr = entry;
+}
+
+task_t* get_current_task() {
+    return current_task;
 }
 
 // initialise_multitasking: Set up the initial (boot) task and one additional task.

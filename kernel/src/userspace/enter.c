@@ -150,8 +150,6 @@ void demo_userland() {
     enter_userspace(fn);
 }
 
-#define PAGE_PAGES(nbytes)  (((nbytes) + PAGE_SIZE - 1) / PAGE_SIZE)
-
 uint64_t find_address(uint64_t elf_size) {
     uint64_t pages_needed = PAGE_PAGES(elf_size);
     uint64_t free_run = 0;

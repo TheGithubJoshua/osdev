@@ -10,7 +10,7 @@ override OUTPUT := kernel
 PREFIX := /usr/local
 
 # User controllable C compiler command.
-CC := cc
+CC := x86_64-elf-gcc
 
 # User controllable C flags.
 CFLAGS := -g -O2 -pipe -Isrc/lai/include/

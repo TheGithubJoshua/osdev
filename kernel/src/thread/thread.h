@@ -10,7 +10,10 @@ typedef struct task_t {
     struct task_t *next;   // Next task in the circular ready queue
     uint8_t state;         // Task state (e.g., RUNNING or READY)
     uint64_t wake_time;    //
-    char fxsave_region[512] __attribute__((aligned(16))); 
+    char fxsave_region[512] __attribute__((aligned(16)));
+    uintptr_t heap_start;
+    uintptr_t heap_end;
+    uint64_t signal; 
 } task_t;
 
 enum { TASK_RUNNING, TASK_READY, DEAD, SLEEPING };
@@ -26,6 +29,7 @@ void boot_task();
 void task_exit();
 void task_sleep(task_t* task, size_t sleep);
 void task_create_wrap(void (*entry)(void));
+task_t* get_current_task();
 
 extern volatile bool multitasking_initialized;
 

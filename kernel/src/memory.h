@@ -26,6 +26,8 @@
 #define PAGE_SHIFT 12
 #define MB (1 << 20)
 
+#define HEAP_MAX (32 * 1024 * 1024) // 32 MB
+
 //#define PAGE_SIZE 4096
 
 // Extract indices from virtual address
@@ -47,6 +49,7 @@
 #define PAGE_FLOOR(x) ((x) & ~PAGE_MASK)
 #define PAGE_CEIL(x)  (((x) + PAGE_MASK) & ~PAGE_MASK)
 #define PAGE_ALIGNED(addr)  (((addr) & (PAGE_SIZE - 1ULL)) == 0)
+#define PAGE_PAGES(nbytes)  (((nbytes) + PAGE_SIZE - 1) / PAGE_SIZE)
 
 #define ISSET(v, f)  ((v) & (f))
 
@@ -88,3 +91,4 @@ int is_mapped(uint64_t virtual_addr);
 size_t strlenn(const char *s);
 void map_len(uint64_t pml4_phys, uint64_t virtual_addr, uint64_t physical_addr, uint64_t flags, size_t len);
 uint64_t get_phys(uint64_t virtual_addr);
+void* sbrk(intptr_t incr);

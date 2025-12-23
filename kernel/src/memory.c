@@ -1,7 +1,10 @@
 #include <limine.h>
 #include <stddef.h>
 #include <stdint.h>
+#include "errno.h"
 #include "iodebug.h"
+#include "thread/thread.h"
+#include "mm/vmm.h"
 #include "panic/panic.h"
 #include "mm/pmm.h"
 #include "memory.h"
@@ -329,4 +332,25 @@ uint64_t get_phys(uint64_t virtual_addr) {
         return 0;
     
     return (e & 0x000FFFFFFFFFF000ULL) | (virtual_addr & 0xFFFULL);
+}
+
+void* sbrk(intptr_t incr) {
+    if (incr < 0) return (void*)-ENOMEM;
+
+    task_t *task = get_current_task();
+    uintptr_t new_end = task->heap_end + incr;
+
+    if (new_end > task->heap_start + HEAP_MAX)
+        return (void*)-ENOMEM;
+
+    void *ret = (void*)task->heap_end;
+
+    // Map physical pages lazily
+    for (uintptr_t addr = task->heap_end; addr < new_end; addr += PAGE_SIZE) {
+        void *phys = palloc(1, false);
+        map_page(read_cr3(), addr, (uint64_t)phys, PAGE_PRESENT | PAGE_USER | PAGE_WRITABLE);
+    }
+
+    task->heap_end = new_end;
+    return ret;
 }
