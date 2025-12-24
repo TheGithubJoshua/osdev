@@ -8,6 +8,8 @@
 #include "../fs/fs.h"
 #include "../mm/pmm.h"
 #include "../panic/panic.h"
+#include "../userspace/signal/signal.h"
+#include "../userspace/signal/signo.h"
 #include "../drivers/ahci/ahci.h"
 #include "../errno.h"
 #include "../userspace/enter.h"
@@ -296,12 +298,52 @@ cpu_status_t* syscall_handler(cpu_status_t* regs) {
             break;
         }
         case 21:
+            // sbrk
             regs->rax = (uint64_t)sbrk(regs->rdi);
+            break;
+        case 22:
+            // signal
+            void* err;
+            void *oldfunction = lookup_signal(regs->rdi)->handler;
+            if (regs->rsi == SIG_DFL) {
+                // signal should default (exit) 
+                err = register_signal(regs->rdi, NULL, false); 
+            } else if (regs->rsi == SIG_IGN) {
+                // signal should be ignored
+                err = register_signal(regs->rdi, NULL, true);
+            } else {
+                // signal should be caught
+                err = register_signal(regs->rdi, (void*)regs->rsi, false);
+            }
+            if (err < 0) { regs->rax = (uint64_t)err; } else { regs->rax = (uint64_t)oldfunction; } 
+            break;
+        case 23:
+            // kill
+            task_t *t = get_task_by_pid(regs->rdi);
+            signal_raise(t, regs->rsi);
+            break;
+        case 24:
+            // getpid
+            regs->rax = get_current_task()->pid;
             break;
         default:
             regs->rax = E_NO_SYSCALL;
             break;
     }
+    // test: raise SIGKILL
+       //task_t *t = get_current_task();
+       //signal_raise(get_task_by_pid(t->pid), SIGKILL);
+       // TODO: create kill() and signal() syscalls
+       // TODO: test user handlers 
+    // check for signals
+    if (issig(get_current_task())) {
+        // there are pending signals
+        void* handler = psig(get_current_task());
+        if (handler != NULL || handler != (void*)-1) {
+        regs->iret_rip = (uint64_t)handler;
+        regs->rax = EINTR; // prob will be reset but idc 
+    }
+}
 
     return regs;
 }

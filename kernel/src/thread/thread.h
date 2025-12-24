@@ -1,9 +1,13 @@
 // -------------------------
 // Task Control Block (TCB)
 // -------------------------
+#pragma once
 #include <stddef.h>
 #include <stdint.h>
 #include <stdbool.h>
+
+#define MAX_PIDS 128
+typedef int pid_t;
 
 typedef struct task_t {
     uint64_t *rsp;         // Saved kernel stack pointer (RSP) for this task
@@ -14,6 +18,7 @@ typedef struct task_t {
     uintptr_t heap_start;
     uintptr_t heap_end;
     uint64_t signal; 
+    pid_t pid;
 } task_t;
 
 enum { TASK_RUNNING, TASK_READY, DEAD, SLEEPING };
@@ -30,6 +35,7 @@ void task_exit();
 void task_sleep(task_t* task, size_t sleep);
 void task_create_wrap(void (*entry)(void));
 task_t* get_current_task();
+task_t* get_task_by_pid(int pid);
 
 extern volatile bool multitasking_initialized;
 

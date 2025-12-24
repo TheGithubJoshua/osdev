@@ -19,6 +19,8 @@ volatile bool multitasking_initialized = false;
 // Pointers to the current task (running) and head of task list.
 task_t *current_task = NULL;
 
+bool pid_used[MAX_PIDS]; 
+
 // Forward declaration of the second task’s entry function.
 void second_task_function(void);
 task_t *create_task(void (*entry)(void));
@@ -33,6 +35,8 @@ void debug_task_list(void) {
     task_t *start = current_task;
     task_t *t = start;
     do {
+        serial_puts("  PID ");
+        serial_puthex((uintptr_t)t->pid);
         serial_puts("  Task ");
         serial_puthex((uintptr_t)t);
         serial_puts("  [rsp: ");
@@ -158,6 +162,16 @@ uint64_t find_heap(uint64_t start, uint64_t end, uint64_t length) {
     return 0; // no suitable region found
 }
 
+static inline int get_free_pid(void) {
+    for (int i = 1; i < MAX_PIDS; i++) {
+        if (!pid_used[i]) {
+            pid_used[i] = 1; // mark it as used immediately
+            return i;
+        }
+    }
+    return -1; // no free PID
+}
+
 #define STACK_SIZE_def 8192
 
 /// Create a new task that starts at `entry()`
@@ -205,10 +219,13 @@ task_t *create_task(void (*entry)(void)) {
     t->cr3 = phys_pml4;*/
     rsp = (uint64_t *)((uintptr_t)rsp & ~0xF);
 
-    // 2c) setup heap
-    //uint64_t heap_addr = (uint64_t)malloc(HEAP_MAX);
-    //t->heap_start = heap_addr;
-    //t->heap_end = heap_addr;
+    // 2c) assign pid
+    int pid = get_free_pid();
+    if (pid == -1) {
+        return NULL;
+    }
+    t->pid = pid;
+    pid_used[pid] = true;
 
     // 3) splice into the existing circle
     if (!current_task) {
@@ -281,12 +298,26 @@ task_t* get_current_task() {
     return current_task;
 }
 
+task_t* get_task_by_pid(int pid) {
+    if (pid <= 0 || pid >= MAX_PIDS) return NULL;
+
+    task_t *t = current_task;
+    while (t) {
+        if (t->pid == pid)
+            return t;
+        t = t->next;
+    }
+    return NULL; // not found
+}
+
+
 // initialise_multitasking: Set up the initial (boot) task and one additional task.
 void initialise_multitasking(void) {
     //asm volatile("cli");
 
     // 1) Create boot task TCB and store current state
     current_task = palloc((sizeof(task_t) + PAGE_SIZE - 1) / PAGE_SIZE, true);
+    current_task->pid = 0; // boot task pid should be zero
     current_task->state = TASK_RUNNING;
 
     // Save the current stack pointer into boot task

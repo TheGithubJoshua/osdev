@@ -13,6 +13,7 @@
 #include "panic/panic.h"
 #include "buffer/buffer.h"
 #include "timer.h"
+#include "userspace/signal/signal.h"
 #include "util/fb.h"
 #include "memory.h"
 #include "elf/elf.h"
