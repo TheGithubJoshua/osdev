@@ -6,7 +6,9 @@
 #include "../drivers/cmos/rtc.h"
 #include "../ff16/source/ff.h"
 #include "../fs/fs.h"
+#include "../posix/time.h"
 #include "../mm/pmm.h"
+#include "../interrupts/apic.h"
 #include "../panic/panic.h"
 #include "../userspace/signal/signal.h"
 #include "../userspace/signal/signo.h"
@@ -281,6 +283,9 @@ cpu_status_t* syscall_handler(cpu_status_t* regs) {
             // reset heap
             task_t *t = get_current_task();
             t->heap_end = t->heap_start;
+
+            // set stack_base
+            t->stack_base = stack;
             
             // Free the kernel copies after setup_stack is done
             for (int i = 0; i < argc; i++) free(argv_copy[i]);
@@ -326,6 +331,21 @@ cpu_status_t* syscall_handler(cpu_status_t* regs) {
             // getpid
             regs->rax = get_current_task()->pid;
             break;
+        case 25:
+            // fork
+            uintptr_t incr = regs->iret_rip - get_current_task()->image_base;
+            regs->rax = do_fork(regs->iret_rsp);
+            if (regs->rax >= 0 && get_current_task()->state == TASK_READY) {
+                regs->iret_rip = get_task_by_pid(regs->rax)->image_base+incr;
+                get_current_task()->state = TASK_RUNNING;
+            }
+        case 26:
+            // gettimeofday
+            void *u_timeval = (void*)regs->rdi;  
+            uint64_t k_timeval = copy_from_user((const void*)regs->rdi, sizeof(timeval));
+            regs->rax = gettimeofday((struct timeval*)k_timeval, NULL);
+            copy_to_user(k_timeval, u_timeval, sizeof(timeval));
+            break;
         default:
             regs->rax = E_NO_SYSCALL;
             break;
@@ -334,7 +354,7 @@ cpu_status_t* syscall_handler(cpu_status_t* regs) {
        //task_t *t = get_current_task();
        //signal_raise(get_task_by_pid(t->pid), SIGKILL);
        // TODO: create kill() and signal() syscalls
-       // TODO: test user handlers 
+       // TODO: test user handlers
     // check for signals
     if (issig(get_current_task())) {
         // there are pending signals
@@ -344,6 +364,5 @@ cpu_status_t* syscall_handler(cpu_status_t* regs) {
         regs->rax = EINTR; // prob will be reset but idc 
     }
 }
-
     return regs;
 }

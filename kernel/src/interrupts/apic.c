@@ -1,5 +1,6 @@
 #include <stdint.h>
 #include <cpuid.h>
+#include "apic.h"
 #include "../cpu/msr.h"
 #include "../iodebug.h"
 #include "../memory.h"
@@ -87,4 +88,16 @@ uint32_t read_ioapic_register(const uintptr_t apic_base, const uint8_t offset) {
     *(volatile uint32_t*)(apic_base) = offset;
     /* return the data from IOWIN */
     return *(volatile uint32_t*)(apic_base + 0x10);
+}
+
+void apic_mask(int interrupt) {
+    uint32_t v = apic_read(interrupt);
+    v |= APIC_LVT_MASK;          // set mask bit
+    apic_write(interrupt, v); 
+}
+
+void apic_unmask(int interrupt) {
+    uint32_t v = apic_read(interrupt);
+    v &= ~APIC_LVT_MASK;         // clear mask bit
+    apic_write(interrupt, v); 
 }

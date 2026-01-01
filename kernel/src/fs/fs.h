@@ -45,6 +45,7 @@ typedef long time_t;
 #define O_CREAT  0x0200
 #define O_TRUNC  0x0400
 #define O_EXCL   0x0800
+#define O_DIRECTORY 00200000
 
 #define FD_STDIN   0
 #define FD_STDOUT  1
@@ -57,8 +58,6 @@ typedef long time_t;
 #define FATFS_TO_ERRNO(fr) \
     (((unsigned)(fr) < ARRAY_SIZE(fatfs_errno_map)) \
         ? fatfs_errno_map[(fr)] : EIO)
-
-#define IS_LEAP(y) (((y) % 4 == 0) && (((y) % 100 != 0) || ((y) % 400 == 0))) // is a given year a leap year
 
 #include <stddef.h>
 #include "../ff16/source/ff.h"

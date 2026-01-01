@@ -9,8 +9,10 @@
 #define MAX_PIDS 128
 typedef int pid_t;
 
+typedef struct task_t task_t;
+
 typedef struct task_t {
-    uint64_t *rsp;         // Saved kernel stack pointer (RSP) for this task
+    uint64_t *rsp;         // Saved stack pointer (RSP) for this task
     struct task_t *next;   // Next task in the circular ready queue
     uint8_t state;         // Task state (e.g., RUNNING or READY)
     uint64_t wake_time;    //
@@ -19,6 +21,10 @@ typedef struct task_t {
     uintptr_t heap_end;
     uint64_t signal; 
     pid_t pid;
+    uintptr_t image_base;
+    uintptr_t image_size;
+    uintptr_t stack_base;
+    task_t *parent;
 } task_t;
 
 enum { TASK_RUNNING, TASK_READY, DEAD, SLEEPING };
@@ -36,6 +42,9 @@ void task_sleep(task_t* task, size_t sleep);
 void task_create_wrap(void (*entry)(void));
 task_t* get_current_task();
 task_t* get_task_by_pid(int pid);
+int get_free_pid(void);
+pid_t do_fork(uintptr_t rsp);
+void set_multitasking_initialized(bool s);
 
 extern volatile bool multitasking_initialized;
 

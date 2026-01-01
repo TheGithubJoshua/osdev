@@ -398,6 +398,9 @@ uintptr_t heap_end   = heap_start;
 task_t *task = get_current_task();
 task->heap_start = heap_start;
 task->heap_end   = heap_end;
+// set image_base and size while we're at it
+task->image_base = ehdr->e_entry;
+task->image_size = elf_size;
 
 uint64_t total_segment_size = max_vaddr - min_vaddr;
 elf_size = total_segment_size;

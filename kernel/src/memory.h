@@ -75,6 +75,8 @@ typedef struct {
 // Assume physical memory identity mapped for page tables access.
 typedef uint64_t pt_entry_t;
 
+extern uintptr_t kernel_stack_top;
+
 uint64_t get_phys_offset(void);
 void *phys_to_virt(void* phys_addr);
 int memcmp(const void *s1, const void *s2, size_t n);

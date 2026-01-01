@@ -5,6 +5,7 @@
 #include "../drivers/keyboard.h"
 #include "../buffer/buffer.h"
 #include "../util/fb.h"
+#include "../posix/time.h"
 #include "../thread/thread.h"
 #include "../errno.h"
 #include <stdint.h>
@@ -246,6 +247,10 @@ int open(const char *path, int flags, mode_t mode) {
     if (!path) {
         return -EINVAL;
     }
+
+    if (flags & O_DIRECTORY) {
+        opendir(path);
+    }
     
     int fd = allocate_fd();
     if (fd < 0) {
@@ -348,7 +353,11 @@ int readdir(int fd, FILINFO* fno) {
         FRESULT fr = f_readdir(d, fno);
         if (fr != FR_OK) {
             return -fatfs_errno_map[fr];
-        } else { return fr; }
+        } else {
+            if (fno->fname[0] == '\0')
+                return -1;   // EOF
+            return 1;
+        }
     }
     
     return -ENOSYS;

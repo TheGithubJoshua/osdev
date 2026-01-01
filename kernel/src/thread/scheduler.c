@@ -162,7 +162,7 @@ uint64_t find_heap(uint64_t start, uint64_t end, uint64_t length) {
     return 0; // no suitable region found
 }
 
-static inline int get_free_pid(void) {
+int get_free_pid(void) {
     for (int i = 1; i < MAX_PIDS; i++) {
         if (!pid_used[i]) {
             pid_used[i] = 1; // mark it as used immediately
@@ -200,6 +200,7 @@ task_t *create_task(void (*entry)(void)) {
     uint64_t *stack = palloc((STACK_WORDS * sizeof *stack + PAGE_SIZE - 1) / PAGE_SIZE, true);
     serial_puthex((uintptr_t)stack);
     if (!stack) { pfree(t, true); return NULL; }
+    t->stack_base = (uintptr_t)stack;
     uint64_t *rsp = stack + STACK_WORDS;
 
 
@@ -310,6 +311,9 @@ task_t* get_task_by_pid(int pid) {
     return NULL; // not found
 }
 
+void set_multitasking_initialized(bool s) {
+    multitasking_initialized = s;
+}
 
 // initialise_multitasking: Set up the initial (boot) task and one additional task.
 void initialise_multitasking(void) {
@@ -356,6 +360,7 @@ void initialise_multitasking(void) {
     while (1) {
         serial_puts("Boot task running again!\n");
         timer_wait(50);
+        //current_task->state = TASK_RUNNING;
         //yield();
     }
     

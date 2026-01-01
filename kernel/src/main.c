@@ -29,8 +29,8 @@
 
 extern void enable_sse(void);
 
-uintptr_t kernel_stack_top;
 uint8_t kernel_stack[KERNEL_STACK_SIZE] __attribute__((aligned(16)));
+uintptr_t kernel_stack_top = (uintptr_t)kernel_stack + KERNEL_STACK_SIZE;
 
 // Set the base revision to 3, this is recommended as this is the latest
 // base revision described by the Limine boot protocol specification.

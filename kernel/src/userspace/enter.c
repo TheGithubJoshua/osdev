@@ -3,6 +3,7 @@
 #include "../mm/vmm.h"
 #include "../ff16/source/ff.h"
 #include "../util/fb.h"
+#include "../thread/thread.h"
 #include "../elf/elf.h"
 #include "../buffer/buffer.h"
 #include "../iodebug.h"
@@ -49,6 +50,7 @@ if(is_mapped(virt_stack_addr)) {
 }
 
 //asm volatile ("mov %%rsp, %0" : "=r"(kernel_stack_top));
+get_current_task()->stack_base = virt_stack_addr;
 stack_top = virt_stack_addr + STACK_SIZE - 8;
 //tss_entry.rsp0 = stack_base_addr + STACK_SIZE;  // Set the kernel stack pointer
 //tss_entry.io_bitmap_offset = sizeof(tss_entry);  // No I/O permission bitmap

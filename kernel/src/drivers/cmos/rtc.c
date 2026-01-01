@@ -3,7 +3,7 @@
 #include "../../iodebug.h"
 #include "../../acpi/acpi.h"
 
-#define CURRENT_YEAR        2025                            // change each year
+#define CURRENT_YEAR        2026                            // change each year
 
 int century_register = 0x00;
 

@@ -1,3 +1,4 @@
+#pragma once
 #include <stdint.h>
 #include <stdint.h>
 #include <stdbool.h>
@@ -5,6 +6,9 @@
 #define IOREGSEL 0xFEC00000
 #define IOREGWIN 0xFEC00010
 #define IOAPIC_VIRT_ADDR ((uintptr_t)get_ioapic_addr() + get_phys_offset())
+
+#define APIC_LVT_TIMER 0x320
+#define APIC_LVT_MASK  (1 << 16)
 
 bool check_apic();
 void set_apic_base(uintptr_t apic);
@@ -23,3 +27,6 @@ uint32_t ioapic_read(uint32_t reg);
 
 void write_ioapic_register(const uintptr_t apic_base, const uint8_t offset, const uint32_t val);
 uint32_t read_ioapic_register(const uintptr_t apic_base, const uint8_t offset);
+
+void apic_mask(int interrupt);
+void apic_unmask(int interrupt);
