@@ -43,7 +43,7 @@ void task_create_wrap(void (*entry)(void));
 task_t* get_current_task();
 task_t* get_task_by_pid(int pid);
 int get_free_pid(void);
-pid_t do_fork(uintptr_t rsp);
+pid_t do_fork(uintptr_t rip, uintptr_t rsp);
 void set_multitasking_initialized(bool s);
 
 extern volatile bool multitasking_initialized;

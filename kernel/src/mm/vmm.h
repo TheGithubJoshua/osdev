@@ -16,4 +16,4 @@ typedef struct vm_object {
 
 void* vmm_alloc(size_t length, size_t flags, void* arg);
 void vm_free(void* addr);
-inline uint64_t convert_amd64_vm_flags(size_t flags);
+uint64_t convert_amd64_vm_flags(size_t flags);

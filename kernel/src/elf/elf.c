@@ -418,7 +418,7 @@ if (entry != NULL) {
     }
     serial_puts("addr of entry(): ");
     serial_puthex((uint64_t)entry);
-    serial_puts("task created!");
+    //serial_puts("task created!");
         if (exec) {
     serial_puts("file: ");
     serial_puthex((uint64_t)file);

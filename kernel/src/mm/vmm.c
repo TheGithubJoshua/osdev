@@ -5,7 +5,7 @@
 
 vm_object* vm_list = NULL;
 
-inline uint64_t convert_amd64_vm_flags(size_t flags) {
+uint64_t convert_amd64_vm_flags(size_t flags) {
     uint64_t value = 0;
     if (flags & VM_FLAG_WRITE)
         value |= PAGE_WRITABLE;

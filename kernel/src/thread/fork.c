@@ -4,10 +4,15 @@
 #include "../errno.h"
 #include "../iodebug.h"
 #include "../userspace/enter.h"
+#include "../syscall/syscall.h"
 #include "../mm/liballoc.h"
 #include "../mm/pmm.h"
 #include "../mm/vmm.h"
 
+uint64_t stack_top2;
+uint64_t user_code_vaddr2;
+uintptr_t incr;
+extern void jump_usermode2();
 static inline uintptr_t read_rsp(void) {
     uintptr_t rsp;
     __asm__ volatile (
@@ -19,24 +24,51 @@ static inline uintptr_t read_rsp(void) {
     return rsp;
 }
 
+static inline uintptr_t read_rip(void)
+{
+    uintptr_t rip;
+    __asm__ volatile (
+        "lea (%%rip), %0"
+        : "=r"(rip)
+        :
+        : "memory"
+    );
+    return rip;
+}
+
+static void release_stack(uintptr_t base) {
+    if (base >= VM_HIGHER_HALF) {
+        base -= VM_HIGHER_HALF;
+        pfree((void*)base, STACK_PAGES);
+    } else {
+        pfree((void*)base, STACK_PAGES);
+    }
+}
+
 /*void fork_trampoline(void) {
 	// child is now running
 	serial_puts("child is now running!");
-	return;
+	stack_top2 = read_rsp() + 5*8;
+	user_code_vaddr2 = get_current_task()->image_base+incr;
+	jump_usermode2();
+	//return;
 }*/
 __attribute__((naked))
 void fork_trampoline(void) {
 	// child is now running
     __asm__ volatile (
-        "lea 0x40(%rsp), %rsp\n\t"
         "xor %rax, %rax\n\t"    // fork() returns 0 in child
+        "movq %rsp, %rdi\n\t" // preserve saved rip
+        "pushq $0x23\n\t"       // push SS (RPL=3)
+        "pushq $0x202\n\t"      // push RFLAGS, IF=1, default flags
+        "pushq $0x1B\n\t"       // push CS, user code segment (RPL=3)
+        "movq %rdi, %rsp\n\t" // restore saved rip to the top
         "ret\n\t"
     );
 }
 
-
-pid_t do_fork(uintptr_t rsp) {
-	rsp = read_rsp();
+pid_t do_fork(uintptr_t rip, uintptr_t rsp) {
+	incr = rip - get_current_task()->image_base;
 	// get parent
 	task_t *parent = get_current_task();
 	// allocate the TCB
@@ -66,11 +98,6 @@ pid_t do_fork(uintptr_t rsp) {
 	}
 	extern uintptr_t kernel_stack_top;
 
-	uint64_t parent_top = kernel_stack_top;
-	child->stack_base = stack;
-	uint64_t child_top = stack + STACK_SIZE - 8;
-	size_t used = parent_top - (size_t)rsp;
-
 	// map the new stack
 	map_len(
 	    read_cr3(),
@@ -80,28 +107,38 @@ pid_t do_fork(uintptr_t rsp) {
 	    STACK_SIZE
 	);
 
+    uint64_t parent_top = parent->stack_base + STACK_SIZE - 8;
+    //child->stack_base = stack;
+    release_stack(child->stack_base); // release create_task stack so we can use custom one
+    child->stack_base = stack;
+    uint64_t child_top = child->stack_base + STACK_SIZE - 8;
+    size_t used = parent_top - (size_t)rsp;
 	child->rsp = (uint64_t*)(child_top - used); // set child rsp
 
 	// copy the new stack
 	memcpy(child->rsp, (void*)rsp, used);
 
 	// fake return address → fork_tramoline(void)
-	((uint64_t *)child->rsp)[0] = (uint64_t)fork_trampoline;
+	STACK_PUSH(child->rsp, (uint64_t)fork_trampoline);
     
     // allocate and map process image
-    uintptr_t image = (uintptr_t)palloc(STACK_PAGES, false);
+    uintptr_t image_pages = PAGE_PAGES(parent->image_size);
+    uintptr_t image = (uintptr_t)palloc(image_pages, false);
     if (image == 0) {
     	return -ENOMEM;
     }
-
+    
+    uintptr_t image_virt = find_address(parent->image_size); // to future me: #PF (prot-violation) occurs on 2nd or so intstruction into usermode. -_-
     map_len(
         read_cr3(),
-        image,
+        image_virt,
         image,
         PAGE_PRESENT | PAGE_WRITABLE | PAGE_USER,
-        STACK_SIZE
+        parent->image_size
     );
-    child->image_base = image;
+
+    child->image_base = image_virt;
+    child->image_size = parent->image_size;
 
 	memcpy((void*)child->image_base, (void*)parent->image_base, parent->image_size); // copy proc image
 	// syscall handler should set rip later

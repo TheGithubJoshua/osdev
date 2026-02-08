@@ -42,7 +42,9 @@ extern uintptr_t kernel_stack_top;
 extern uint64_t elf_size;
 
 void enter_userspace(const char *fn);
+void enter_userspace_again(const char *fn);
 void test_user_function();
 void demo_userland();
+void demo_userland_again();
 uint64_t find_address(uint64_t elf_size);
 uint64_t get_userland_fb_addr();

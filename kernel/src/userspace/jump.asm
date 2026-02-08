@@ -1,4 +1,5 @@
 global jump_usermode
+global jump_usermode2
 extern test_user_function
 extern stack_top
 extern user_code_vaddr
@@ -22,6 +23,32 @@ jump_usermode:
 
     ; Push RIP (entry point)
     mov rax, [user_code_vaddr]
+    push rax
+
+    ; Done: perform the transition
+    iretq
+
+    extern stack_top2
+    extern user_code_vaddr2
+jump_usermode2:
+    cli
+    ; Load stack top (user RSP)
+    mov rax, [stack_top2]
+
+    ; Push SS
+    push qword 0x23              ; user data segment (RPL=3)
+    ;sub rax, 8
+    ;and rax, -16
+    push rax                     ; user stack pointer (RSP)
+
+    ; Push RFLAGS
+    push qword 0x202             ; IF=1, default flags
+
+    ; Push CS
+    push qword 0x1B              ; user code segment (RPL=3)
+
+    ; Push RIP (entry point)
+    mov rax, [user_code_vaddr2]
     push rax
 
     ; Done: perform the transition

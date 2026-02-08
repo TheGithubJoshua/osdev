@@ -190,6 +190,7 @@ cpu_status_t* syscall_handler(cpu_status_t* regs) {
         case 16:
             // exec 
             regs->iret_rip = (uint64_t)load_program(regs->rdi);
+            get_current_task()->image_base = regs->iret_rip;
             break;
         case 17:
             // get fb info (deprecated)
@@ -295,6 +296,7 @@ cpu_status_t* syscall_handler(cpu_status_t* regs) {
             regs->iret_rsp = (uint64_t)stack_top;
             regs->iret_rip = entry;
             regs->rax = 0;
+            get_current_task()->image_base = regs->iret_rip; // image base
             // set the GPRs
             regs->rdi = argc;                           // argc = 2
             regs->rsi = (uint64_t)argv[0];       // &argv[0]
@@ -334,11 +336,13 @@ cpu_status_t* syscall_handler(cpu_status_t* regs) {
         case 25:
             // fork
             uintptr_t incr = regs->iret_rip - get_current_task()->image_base;
-            regs->rax = do_fork(regs->iret_rsp);
-            if (regs->rax >= 0 && get_current_task()->state == TASK_READY) {
+            regs->rax = do_fork(regs->iret_rip, regs->iret_rsp);
+            /*if (regs->rax > 0 && get_current_task()->state == TASK_READY) {
                 regs->iret_rip = get_task_by_pid(regs->rax)->image_base+incr;
+                //STACK_PUSH(get_current_task()->rsp, regs->iret_rip);
                 get_current_task()->state = TASK_RUNNING;
-            }
+            }*/
+            break;
         case 26:
             // gettimeofday
             void *u_timeval = (void*)regs->rdi;  

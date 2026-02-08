@@ -246,6 +246,7 @@ return t;
 
 void task_free() {
     task_t* dead = current_task->next;
+    if (dead->state == TASK_READY) { dead->state = TASK_RUNNING; }
 
     // Don't delete if it's the only task left
     if (dead == current_task) return;

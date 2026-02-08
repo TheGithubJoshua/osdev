@@ -147,9 +147,132 @@ flanterm_write(flanterm_get_ctx(), "\033[0m", 5);
 jump_usermode();
 }
 
+void enter_userspace_again(const char *fn) {
+//tss_entry.ss0  = 0x10;
+uint64_t stack_base_addr = (uint64_t)palloc((STACK_SIZE + PAGE_SIZE - 1) / PAGE_SIZE, false);
+serial_puts("stack base addr: ");
+serial_puthex(stack_base_addr);
+uint64_t virt_stack_addr = find_address(STACK_SIZE);
+map_len(
+    read_cr3(),
+    virt_stack_addr,
+    stack_base_addr,
+    PAGE_PRESENT | PAGE_WRITABLE | PAGE_USER | PAGE_NO_EXECUTE,   // length to map
+    STACK_SIZE
+);
+//uint64_t virt_stack_addr = (uint64_t)vmm_alloc(STACK_SIZE, VM_FLAG_WRITE | VM_FLAG_USER, NULL);
+if(is_mapped(virt_stack_addr)) { 
+    serial_puts("user stack is mapped!");
+} else {
+    serial_puts("user stack is not mapped!");
+}
+
+//asm volatile ("mov %%rsp, %0" : "=r"(kernel_stack_top));
+get_current_task()->stack_base = virt_stack_addr;
+stack_top = virt_stack_addr + STACK_SIZE - 8;
+//tss_entry.rsp0 = stack_base_addr + STACK_SIZE;  // Set the kernel stack pointer
+//tss_entry.io_bitmap_offset = sizeof(tss_entry);  // No I/O permission bitmap
+//char *fd = palloc((5000 + PAGE_SIZE - 1) / PAGE_SIZE, true);
+//void* phys_page = palloc(1, false); // allocate one page
+FIL fil;
+FRESULT fr;
+UINT br;
+FSIZE_t size;
+char *fd;
+
+/* Open the file */
+fr = f_open(&fil, fn, FA_READ);
+if (fr != FR_OK) {
+    serial_puts("f_open failed\n");
+    serial_puthex(fr);
+    return;
+}
+
+/* Get file size */
+size = f_size(&fil);
+
+/* Allocate buffer for the file */
+fd = palloc((size + PAGE_SIZE - 1) / PAGE_SIZE, true);
+if (!fd) {
+    serial_puts("palloc failed\n");
+    f_close(&fil);
+    return;
+}
+
+/* Read the entire file */
+fr = f_read(&fil, fd, size, &br);
+if (fr != FR_OK || br != size) {
+    serial_puts("f_read failed or incomplete\n");
+    serial_puthex(fr);
+    f_close(&fil);
+    return;
+}
+
+/* Close file */
+f_close(&fil);
+
+/* Now buf contains the entire file */
+serial_puts("File loaded into memory\n");
+//fd = fat_read(fn, 0);
+entry_t elf = load_elf(fd, false);
+serial_puts("elf size: ");
+serial_puthex(elf_size);
+//elf_size += 0x2000; // fix me
+// Map the page to userspace address, readable + executable + user access
+void* phys_page = palloc((elf_size + PAGE_SIZE - 1) / PAGE_SIZE, false); // alloc physical
+//void* temp_kernel_mapping = (void*)0x3333906969000000; // pick an unused virtual address in kernel space
+
+// Temporarily map it so kernel can write into it
+/*map_page(read_cr3(), (uint64_t)temp_kernel_mapping, (uint64_t)phys_page,
+         PAGE_PRESENT | PAGE_WRITABLE);
+*/
+// start virtual address of user code
+user_code_vaddr = find_address(elf_size);
+serial_puts("user_code_vaddr: ");
+serial_puthex(user_code_vaddr);
+// Then map it into user space for execution
+map_len(read_cr3(),
+        user_code_vaddr,
+        (uint64_t)phys_page,
+        PAGE_PRESENT | PAGE_USER | PAGE_WRITABLE | PAGE_EXECUTE, elf_size);
+
+// Now it's safe to memcpy
+memcpy((void*)user_code_vaddr, (void*)elf, elf_size);
+
+// framebuffer setup
+uint64_t fb_phys = (uint64_t)get_fb_addr() - get_phys_offset();
+uint64_t fb_size = get_fb_size(); // width * height * bpp
+
+//fb_virt = (uint64_t)palloc((fb_size + PAGE_SIZE - 1) / PAGE_SIZE, false);
+fb_virt = 0xFB0000; 
+
+for (uint64_t off = 0; off < fb_size; off += 0x1000) {
+    map_page(read_cr3(),
+             fb_virt + off,
+             fb_phys + off,
+             PAGE_PRESENT | PAGE_WRITABLE | PAGE_USER);
+}
+
+serial_puts("fb_phys, fb_size, fb_virt...");
+serial_puthex(fb_phys);
+serial_puthex(fb_size);
+serial_puthex(fb_virt);
+
+//memcpy((void*)phys_page, loop, sizeof(loop));
+flanterm_write(flanterm_get_ctx(), "[KERNEL] Welcome to userland!\n", 30);
+flanterm_write(flanterm_get_ctx(), "\033[0m", 5);
+
+jump_usermode();
+}
+
 void demo_userland() {
     char *fn = "shell000";
     enter_userspace(fn);
+}
+
+void demo_userland_again() {
+    char *fn = "shell000";
+    enter_userspace_again(fn);
 }
 
 uint64_t find_address(uint64_t elf_size) {
